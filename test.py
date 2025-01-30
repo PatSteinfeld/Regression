@@ -18,7 +18,7 @@ def check_password():
             st.session_state["username"] in st.secrets["passwords"]
             and hmac.compare_digest(
                 st.session_state["password"],
-                st.secrets.passwords[st.session_state["username"]],
+                st.secrets.passwords[st.session_state["username"]]
             )
         ):
             st.session_state["password_correct"] = True
@@ -258,6 +258,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
 
 
 
