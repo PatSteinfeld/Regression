@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from io import BytesIO
 import hmac
 
 # Login Authentication
@@ -57,7 +58,6 @@ def main():
             "Project Planner",
             "Activity Name",
             "Project Status",
-            "Project Number"  # Added Project Number
         ]
         if not all(col in old_data.columns for col in required_columns):
             st.error(f"The old file is missing one or more required columns: {required_columns}")
@@ -118,31 +118,147 @@ def main():
         )
 
         # Aggregating results
-        old_res = od.groupby(["Project Planner", "Split MD Date Year-Month Label", "Type", "Project Number"])["Split Man-Days"].sum().reset_index()
-        old_res.columns = ["Planner", "Month", "Type", "Project Number", "Man-Days"]
-        old_res_1 = od.groupby(['Project Planner', 'Split MD Date Year-Month Label', 'RC_Status', 'RC_Substatus', 'Project Number'])['Split Man-Days'].sum().reset_index()
-        old_res_1.columns = ['Planner', 'Month', 'RC_Status', 'RC_Substatus', 'Project Number', 'Man-Days']
+        old_res = od.groupby(["Project Planner", "Split MD Date Year-Month Label", "Type"])["Split Man-Days"].sum().reset_index()
+        old_res.columns = ["Planner", "Month", "Type", "Man-Days"]
+        old_res_1 = od.groupby(['Project Planner', 'Split MD Date Year-Month Label', 'RC_Status','RC_Substatus'])['Split Man-Days'].sum().reset_index()
+        old_res_1.columns = ['Planner', 'Month', 'RC_Status','RC_Substatus', 'RC_Man-Days']
+        new_res = nw.groupby(["Project Planner", "Split MD Date Year-Month Label", "Type"])["Split Man-Days"].sum().reset_index()
+        new_res.columns = ["Planner", "Month", "Type", "Man-Days"]
+        new_res_1 = nw.groupby(['Project Planner', 'Split MD Date Year-Month Label', 'RC_Status','RC_Substatus'])['Split Man-Days'].sum().reset_index()
+        new_res_1.columns = ['Planner', 'Month', 'RC_Status','RC_Substatus', 'RC_Man-Days']
 
-        # Displaying the results with categories, hiding Project Number initially
-        st.subheader("Performance Insights")
+        # Merging results
+        comparison_df = pd.merge(
+            old_res,
+            new_res,
+            on=["Planner", "Month", "Type"],
+            suffixes=("_old", "_new"),
+            how="outer",
+        )
+        comparison_df_1 = pd.merge(
+            old_res_1,
+            new_res_1,
+            on=["Planner", "Month", "RC_Status", "RC_Substatus"],
+            suffixes=("_old", "_new"),
+            how="outer",
+        ).fillna(0) 
 
-        # Category selection (e.g., by RC Status or Type)
-        category = st.selectbox("Select Category to View Details", ['RC_Status', 'Type'])
+        # Calculating differences
+        comparison_df["Man-Days_Diff"] = (
+            comparison_df["Man-Days_new"] - comparison_df["Man-Days_old"]
+        )
+        comparison_df_1["RC_Man-Days_Diff"] = (
+            comparison_df_1["RC_Man-Days_new"] - comparison_df_1["RC_Man-Days_old"]
+        )
 
-        if category == 'RC_Status':
-            result = old_res_1
-            category_column = 'RC_Status'
-        else:
-            result = old_res
-            category_column = 'Type'
+        # Creating pivot tables
+        pivot_df = comparison_df.pivot_table(
+            index=["Planner", "Month"],
+            columns="Type",
+            values=["Man-Days_old", "Man-Days_new", "Man-Days_Diff"],
+            aggfunc="sum",
+            fill_value=0,
+        ).reset_index()
 
-        # Displaying the category data
-        grouped_data = result.groupby([category_column, "Planner", "Month"]).agg({"Man-Days": "sum"}).reset_index()
+        pivot_df_1 = comparison_df_1.pivot_table(
+            index=['Planner', 'Month'],
+            columns=['RC_Status','RC_Substatus'],  
+            values=['RC_Man-Days_old', 'RC_Man-Days_new', 'RC_Man-Days_Diff'],  
+            aggfunc='sum',  
+            fill_value=0  
+        ).reset_index()
 
-        for _, row in grouped_data.iterrows():
-            with st.expander(f"{row[category_column]} - {row['Planner']} - {row['Month']}"):
-                st.write(f"Man-Days: {row['Man-Days']}")
-                st.write(f"Project Number: {row['Project Number']}")  # Showing Project Number when clicked
+        # Flattening column names
+        pivot_df.columns = ["_".join(col).strip("_") for col in pivot_df.columns]
+        pivot_df_1.columns = [f'{col[0]}_{col[1]}_{col[2]}' for col in pivot_df_1.columns]
+
+        # Output to Streamlit
+        st.header("Planner Performance Comparison Results")
+        st.dataframe(pivot_df)
+        st.dataframe(pivot_df_1)
+
+        # Optional: Save and download results as Excel
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            pivot_df.to_excel(writer, index=False, sheet_name="Comparison Results")
+            pivot_df_1.to_excel(writer, index=False, sheet_name="RC Comparison Results")
+        st.download_button(
+            label="Download Results",
+            data=output.getvalue(),
+            file_name="comparison_results.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    # Man-Days Category-wise Analysis Section
+    st.header("Upload Excel File for Man-Days Category-wise Analysis")
+    uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"], key="man_days")
+
+    if uploaded_file:
+        try:
+            df = pd.read_excel(uploaded_file, sheet_name="Sheet1")
+
+            REQUIRED_COLUMNS = ["Project Number", "Project Status", "Split MD Date Year-Month Label", "Split Man-Days", "Validity End Date", "Activity Name"]
+
+            # Check if required columns are present
+            missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+            if missing_columns:
+                st.error(f"Missing columns: {', '.join(missing_columns)}. Please upload a valid file.")
+            else:
+                df = df[REQUIRED_COLUMNS]
+
+                # Convert date columns to datetime format
+                df["Split MD Date Year-Month Label"] = pd.to_datetime(df["Split MD Date Year-Month Label"], errors='coerce')
+                df["Validity End Date"] = pd.to_datetime(df["Validity End Date"], errors='coerce')
+
+                # Calculate the difference in days
+                df["Date Difference"] = (df["Validity End Date"] - df["Split MD Date Year-Month Label"]).dt.days
+                df = df[df["Date Difference"] >= 0]  # Filter out invalid dates
+
+                # Categorize based on Date Difference
+                def categorize_date_diff(days):
+                    if days <= 30:
+                        return '0-30 days'
+                    elif 30 < days <= 60:
+                        return '31-60 days'
+                    elif 60 < days <= 90:
+                        return '61-90 days'
+                    else:
+                        return 'Over 90 days'
+
+                df["Date Category"] = df["Date Difference"].apply(categorize_date_diff)
+
+                # Adding RC_Type logic based on Activity Name and Project Status
+                df["RC_Type"] = df.apply(
+                    lambda row: "RC Not available"
+                    if row["Activity Name"] == "RC"
+                    and row["Project Status"] in ["Quote Revision", "Final PA Review"]
+                    else (
+                        "RC available"
+                        if row["Activity Name"] == "RC"
+                        and row["Project Status"] in ["Reviewed", "Review In Progress"]
+                        else "Not An RC"
+                    ),
+                    axis=1,
+                )
+
+                # Group by Date Category and RC_Type for analysis
+                df_category_group = df.groupby(["Date Category", "RC_Type"])["Split Man-Days"].sum().reset_index()
+
+                # Visualize category-wise analysis
+                fig = px.bar(df_category_group, x="Date Category", y="Split Man-Days", color="RC_Type", title="Man-Days Category-wise Analysis Based on Date Difference and RC Type")
+                st.plotly_chart(fig)
+
+                # Displaying Project Number when user clicks on category
+                for _, row in df_category_group.iterrows():
+                    with st.expander(f"{row['Date Category']} - {row['RC_Type']}"):
+                        st.write(f"Project Number: {row['Project Number']}")  # Showing Project Number when clicked
+
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
+
+if __name__ == "__main__":
+    main()
+
 
 
 
