@@ -197,7 +197,7 @@ def main():
         try:
             df = pd.read_excel(uploaded_file, sheet_name="Sheet1")
 
-            REQUIRED_COLUMNS = ["Project Number", "Project Status", "Split MD Date Year-Month Label", "Split Man-Days", "Validity End Date", "Activity Name", "RC_Type"]
+            REQUIRED_COLUMNS = ["Project Number", "Project Status", "Split MD Date Year-Month Label", "Split Man-Days", "Validity End Date", "Activity Name"]
 
             # Check if required columns are present
             missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
