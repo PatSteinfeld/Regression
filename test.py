@@ -197,7 +197,7 @@ def main():
         try:
             df = pd.read_excel(uploaded_file, sheet_name="Sheet1")
 
-            REQUIRED_COLUMNS = ["Project Number", "Project Status", "Split MD Date Year-Month Label", "Split Man-Days", "Validity End Date", "RC_Type"]
+            REQUIRED_COLUMNS = ["Project Number", "Project Status", "Split MD Date Year-Month Label", "Split Man-Days", "Validity End Date", "Activity Name", "RC_Type"]
 
             # Check if required columns are present
             missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
@@ -226,6 +226,20 @@ def main():
                         return 'Over 90 days'
 
                 df["Date Category"] = df["Date Difference"].apply(categorize_date_diff)
+
+                # Adding RC_Type logic based on Activity Name and Project Status
+                df["RC_Type"] = df.apply(
+                    lambda row: "RC Not available"
+                    if row["Activity Name"] == "RC"
+                    and row["Project Status"] in ["Quote Revision", "Final PA Review"]
+                    else (
+                        "RC available"
+                        if row["Activity Name"] == "RC"
+                        and row["Project Status"] in ["Reviewed", "Review In Progress"]
+                        else "Not An RC"
+                    ),
+                    axis=1,
+                )
 
                 # Group by Date Category and RC_Type for analysis
                 df_category_group = df.groupby(["Date Category", "RC_Type"])["Split Man-Days"].sum().reset_index()
