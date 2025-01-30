@@ -214,11 +214,24 @@ def main():
                 df["Date Difference"] = (df["Validity End Date"] - df["Split MD Date Year-Month Label"]).dt.days
                 df = df[df["Date Difference"] >= 0]  # Filter out invalid dates
 
-                # Group by Category for analysis
-                df_category_group = df.groupby("Project Status")["Split Man-Days"].sum().reset_index()
-                
+                # Categorize based on Date Difference
+                def categorize_date_diff(days):
+                    if days <= 30:
+                        return '0-30 days'
+                    elif 30 < days <= 60:
+                        return '31-60 days'
+                    elif 60 < days <= 90:
+                        return '61-90 days'
+                    else:
+                        return 'Over 90 days'
+
+                df["Date Category"] = df["Date Difference"].apply(categorize_date_diff)
+
+                # Group by Date Category for analysis
+                df_category_group = df.groupby("Date Category")["Split Man-Days"].sum().reset_index()
+
                 # Visualize category-wise analysis
-                fig = px.bar(df_category_group, x="Project Status", y="Split Man-Days", title="Man-Days Category-wise Analysis")
+                fig = px.bar(df_category_group, x="Date Category", y="Split Man-Days", title="Man-Days Category-wise Analysis Based on Date Difference")
                 st.plotly_chart(fig)
 
         except Exception as e:
@@ -226,4 +239,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
 
