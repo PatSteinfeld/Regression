@@ -242,7 +242,7 @@ def main():
                 )
 
                 # Group by Date Category and RC_Type for analysis
-                df_category_group = df.groupby(["Date Category", "RC_Type"])["Split Man-Days"].sum().reset_index()
+                df_category_group = df.groupby(["Date Category", "RC_Type", "Project Number"])["Split Man-Days"].sum().reset_index()
 
                 # Visualize category-wise analysis
                 fig = px.bar(df_category_group, x="Date Category", y="Split Man-Days", color="RC_Type", title="Man-Days Category-wise Analysis Based on Date Difference and RC Type")
@@ -258,6 +258,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
