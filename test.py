@@ -197,7 +197,7 @@ def main():
         try:
             df = pd.read_excel(uploaded_file, sheet_name="Sheet1")
 
-            REQUIRED_COLUMNS = ["Project Number", "Project Status", "Split MD Date Year-Month Label", "Split Man-Days", "Validity End Date"]
+            REQUIRED_COLUMNS = ["Project Number", "Project Status", "Split MD Date Year-Month Label", "Split Man-Days", "Validity End Date", "RC_Type"]
 
             # Check if required columns are present
             missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
@@ -227,11 +227,11 @@ def main():
 
                 df["Date Category"] = df["Date Difference"].apply(categorize_date_diff)
 
-                # Group by Date Category for analysis
-                df_category_group = df.groupby("Date Category")["Split Man-Days"].sum().reset_index()
+                # Group by Date Category and RC_Type for analysis
+                df_category_group = df.groupby(["Date Category", "RC_Type"])["Split Man-Days"].sum().reset_index()
 
                 # Visualize category-wise analysis
-                fig = px.bar(df_category_group, x="Date Category", y="Split Man-Days", title="Man-Days Category-wise Analysis Based on Date Difference")
+                fig = px.bar(df_category_group, x="Date Category", y="Split Man-Days", color="RC_Type", title="Man-Days Category-wise Analysis Based on Date Difference and RC Type")
                 st.plotly_chart(fig)
 
         except Exception as e:
