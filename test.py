@@ -56,8 +56,8 @@ if uploaded_file:
             df["RC Type"] = df.apply(lambda row: "RC Not Received" if row["Project Status"] in ["Quote Revision", "Final PA Review"] else "RC Received", axis=1)
 
             # Grouping data
-            rcc = df.groupby(['Category', 'RC Type']) \ 
-                    .agg({'Split Man-Days': 'sum', 'Service Code': 'count', 'Project Number': lambda x: list(set(x))}) \ 
+            rcc = df.groupby(['Category', 'RC Type']) \
+                    .agg({'Split Man-Days': 'sum', 'Service Code': 'count', 'Project Number': lambda x: list(set(x))}) \
                     .reset_index()
             
             rcc.columns = ['Category', 'RC Type', 'Man-Days', 'Service Code Count', 'Project Numbers']
