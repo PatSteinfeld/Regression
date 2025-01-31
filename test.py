@@ -3,7 +3,7 @@ import streamlit as st
 import plotly.express as px
 from io import BytesIO
 
-# Streamlit Page Config with Dark Mode Support
+# Streamlit Page Config with Wide Layout
 st.set_page_config(page_title="Man-Days Analysis", layout="wide")
 
 # Define required columns
@@ -25,7 +25,7 @@ if uploaded_file:
         if missing_columns:
             st.error(f"🚨 Missing columns: {', '.join(missing_columns)}. Please upload a valid file.")
         else:
-            # Selecting the required columns
+            # Selecting required columns
             df = df[REQUIRED_COLUMNS]
 
             # Convert date columns to datetime format
@@ -35,7 +35,7 @@ if uploaded_file:
             # Calculate the difference in days
             df["Date Difference"] = (df["Validity End Date"] - df["Split MD Date Year-Month Label"]).dt.days
 
-            # Categorizing the difference
+            # Categorize the difference
             def categorize_days(diff):
                 if pd.isna(diff):
                     return "NA"
@@ -49,27 +49,21 @@ if uploaded_file:
                     return "90+ days"
                 else:
                     return "NA"
-
+            
             df["Category"] = df["Date Difference"].apply(categorize_days)
 
-            # Adding RC Type column
+            # RC Type categorization
             df["RC Type"] = df.apply(lambda row: "RC Not Received" if row["Project Status"] in ["Quote Revision", "Final PA Review"] else "RC Received", axis=1)
 
-            # Grouping data for visualization
-            rcc = df.groupby(['Category', 'RC Type']) \
-                    .agg({
-                        'Split Man-Days': 'sum',  # Sum of Man-Days
-                        'Service Code': 'count',  # Count occurrences of Service Code
-                        'Project Number': lambda x: list(set(x))  # Collect unique project numbers
-                    }) \
+            # Grouping data
+            rcc = df.groupby(['Category', 'RC Type']) \ 
+                    .agg({'Split Man-Days': 'sum', 'Service Code': 'count', 'Project Number': lambda x: list(set(x))}) \ 
                     .reset_index()
-
+            
             rcc.columns = ['Category', 'RC Type', 'Man-Days', 'Service Code Count', 'Project Numbers']
 
-            # Sidebar filter
+            # Sidebar filters
             selected_category = st.sidebar.selectbox("🔍 Select a Category", ["All"] + list(rcc["Category"].unique()))
-
-            # Filter data based on selection
             filtered_df = rcc if selected_category == "All" else rcc[rcc['Category'] == selected_category]
 
             # Metrics at the top
@@ -80,85 +74,45 @@ if uploaded_file:
             col1.metric("📅 Total Man-Days", f"{total_man_days:,.0f}")
             col2.metric("📌 Total Service Codes", f"{total_service_codes:,.0f}")
 
-            # Create bar chart with Service Code Count as text labels
+            # Bar chart
             fig = px.bar(
                 filtered_df,
                 x='Category',
                 y='Man-Days',
                 color='RC Type',
-                text='Service Code Count',  # Show count of Service Codes in each category
+                text='Service Code Count',
                 barmode='stack',
                 title="📊 Sum of Man-Days & Service Code Count Category-wise",
-                color_discrete_map={"RC Received": "#636EFA", "RC Not Received": "#EF553B"}  # Custom colors
+                color_discrete_map={"RC Received": "#636EFA", "RC Not Received": "#EF553B"}
             )
-
             fig.update_traces(texttemplate='%{text}', textposition='outside')
-
-            # Display plot
             st.plotly_chart(fig, use_container_width=True)
 
-            # **Project Numbers Table**
+            # Expandable Project Numbers Section
             if selected_category != "All":
-                st.subheader(f"📜 Project Numbers in {selected_category}")
-                
-                # Extract project numbers for selected category
-                project_data = df[df['Category'] == selected_category][['Project Number', 'Service Code']].drop_duplicates()
-                
-                st.dataframe(project_data, use_container_width=True)
+                with st.expander(f"📜 View Project Numbers in {selected_category}"):
+                    project_data = df[df['Category'] == selected_category][['Project Number', 'Service Code']].drop_duplicates()
+                    st.dataframe(project_data, use_container_width=True)
 
-                # **Download Filtered Project Numbers**
-                def convert_project_numbers_to_excel(dataframe):
-                    output = BytesIO()
-                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                        dataframe.to_excel(writer, index=False, sheet_name="Project Numbers")
-                    return output.getvalue()
+                    # Download buttons
+                    def convert_to_excel(dataframe):
+                        output = BytesIO()
+                        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                            dataframe.to_excel(writer, index=False, sheet_name="Project Numbers")
+                        return output.getvalue()
 
-                def convert_project_numbers_to_csv(dataframe):
-                    return dataframe.to_csv(index=False).encode('utf-8')
+                    def convert_to_csv(dataframe):
+                        return dataframe.to_csv(index=False).encode('utf-8')
+                    
+                    st.download_button("⬇️ Download Project Numbers (Excel)", data=convert_to_excel(project_data), file_name=f"Project_Numbers_{selected_category}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    st.download_button("⬇️ Download Project Numbers (CSV)", data=convert_to_csv(project_data), file_name=f"Project_Numbers_{selected_category}.csv", mime="text/csv")
 
-                st.download_button(
-                    label="⬇️ Download Project Numbers (Excel)",
-                    data=convert_project_numbers_to_excel(project_data),
-                    file_name=f"Project_Numbers_{selected_category}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-
-                st.download_button(
-                    label="⬇️ Download Project Numbers (CSV)",
-                    data=convert_project_numbers_to_csv(project_data),
-                    file_name=f"Project_Numbers_{selected_category}.csv",
-                    mime="text/csv"
-                )
-
-            # Function to export full dataset to Excel
-            def convert_df_to_excel(dataframe):
-                output = BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    dataframe.to_excel(writer, index=False, sheet_name="Processed Data")
-                return output.getvalue()
-
-            # Function to export full dataset to CSV
-            def convert_df_to_csv(dataframe):
-                return dataframe.to_csv(index=False).encode('utf-8')
-
-            # Sidebar Download Options
+            # Sidebar Downloads
             st.sidebar.subheader("📥 Download Processed Data")
-            st.sidebar.download_button(
-                label="⬇️ Download Excel",
-                data=convert_df_to_excel(df),
-                file_name="processed_data.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-            st.sidebar.download_button(
-                label="⬇️ Download CSV",
-                data=convert_df_to_csv(df),
-                file_name="processed_data.csv",
-                mime="text/csv"
-            )
-
+            st.sidebar.download_button("⬇️ Download Excel", data=convert_to_excel(df), file_name="processed_data.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            st.sidebar.download_button("⬇️ Download CSV", data=convert_to_csv(df), file_name="processed_data.csv", mime="text/csv")
     except Exception as e:
         st.error(f"❌ An error occurred: {e}")
-
 
 
 
