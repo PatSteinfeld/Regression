@@ -4,10 +4,10 @@ import plotly.express as px
 from io import BytesIO
 
 # Define required columns
-REQUIRED_COLUMNS = ["Project Number", "Service Code","Project Status", "Split MD Date Year-Month Label", "Split Man-Days", "Validity End Date"]
+REQUIRED_COLUMNS = ["Project Number", "Project Planner","Project Status", "Split MD Date Year-Month Label", "Split Man-Days", "Validity End Date"]
 
 # Streamlit UI
-st.title("Man-Days Category-wise Analysis")
+st.title("RC  Analysis")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
@@ -53,10 +53,10 @@ if uploaded_file:
 
             # Grouping data for visualization
             rcc = df.groupby(['Category', 'RC Type']) \
-                    .agg({'Split Man-Days': 'sum', 'Service Code': lambda x: list(set(x))}) \
+                    .agg({'Split Man-Days': 'sum', 'Project Planner': lambda x: list(set(x))}) \
                     .reset_index()
 
-            rcc.columns = ['Category', 'RC Type', 'Man-Days', 'Service Code']
+            rcc.columns = ['Category', 'RC Type', 'Man-Days', 'Project Planner']
 
             # Dropdown for selecting category
             selected_category = st.selectbox("Select a Category", ["All"] + list(rcc["Category"].unique()))
@@ -82,7 +82,7 @@ if uploaded_file:
 
             # Display project numbers when a category is selected
             if selected_category != "All":
-                projects = df[df['Category'] == selected_category]['Service Code'].unique()
+                projects = df[df['Category'] == selected_category]['Project Planner'].unique()
                 st.write(f"**Projects in {selected_category}:**")
                 st.write(", ".join(map(str, projects)) if projects.size > 0 else "No projects found.")
 
