@@ -50,7 +50,7 @@ if uploaded_file:
 
             # Adding RC Type column
             df["RC Type"] = df.apply(lambda row: "RC Not Received" if row["Project Status"] in ["Quote Revision", "Final PA Review"] else "RC Received", axis=1)
-
+            df["RC Sub-status"] = df.apply(lambda row: "Quote Revision" if row["RC Type"] == "RC Not Received" and row["Project Status"] == "Quote Revision" else "Final PA Review",axis=1)
             # Grouping data for visualization
             rcc = df.groupby(['Category', 'RC Type']) \
                     .agg({'Split Man-Days': 'sum', 'Project Planner': lambda x: list(set(x))}) \
