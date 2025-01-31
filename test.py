@@ -1,12 +1,10 @@
-
-
 import pandas as pd
 import streamlit as st
 import plotly.express as px
 from io import BytesIO
 
 # Define required columns
-REQUIRED_COLUMNS = ["Project Number", "Service Code","Project Status", "Split MD Date Year-Month Label", "Split Man-Days", "Validity End Date"]
+REQUIRED_COLUMNS = ["Project Number", "Service Code", "Project Status", "Split MD Date Year-Month Label", "Split Man-Days", "Validity End Date"]
 
 # Streamlit UI
 st.title("Man-Days Category-wise Analysis")
@@ -53,12 +51,16 @@ if uploaded_file:
             # Adding RC Type column
             df["RC Type"] = df.apply(lambda row: "RC Not Received" if row["Project Status"] in ["Quote Revision", "Final PA Review"] else "RC Received", axis=1)
 
-            # Grouping data for visualization
+            # Grouping data for visualization with count of Service Codes
             rcc = df.groupby(['Category', 'RC Type']) \
-                    .agg({'Split Man-Days': 'sum', 'Service Code': lambda x: list(set(x))}) \
+                    .agg({
+                        'Split Man-Days': 'sum', 
+                        'Service Code': lambda x: list(set(x)),  # Unique Service Codes
+                        'Project Number': 'count'  # Counting occurrences of Service Codes
+                    }) \
                     .reset_index()
 
-            rcc.columns = ['Category', 'RC Type', 'Man-Days', 'Service Code']
+            rcc.columns = ['Category', 'RC Type', 'Man-Days', 'Service Code', 'Project Count']
 
             # Dropdown for selecting category
             selected_category = st.selectbox("Select a Category", ["All"] + list(rcc["Category"].unique()))
@@ -66,15 +68,15 @@ if uploaded_file:
             # Filter data based on selection
             filtered_df = rcc if selected_category == "All" else rcc[rcc['Category'] == selected_category]
 
-            # Create bar chart
+            # Create bar chart with Project Count as text labels
             fig = px.bar(
                 filtered_df,
                 x='Category',
                 y='Man-Days',
                 color='RC Type',
-                text='Man-Days',
+                text='Project Count',  # Show the count of projects
                 barmode='stack',
-                title="Sum of Man-Days Category-wise"
+                title="Sum of Man-Days & Project Count Category-wise"
             )
 
             fig.update_traces(texttemplate='%{text}', textposition='outside')
@@ -106,6 +108,7 @@ if uploaded_file:
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
+
 
 
 
