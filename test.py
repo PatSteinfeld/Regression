@@ -51,16 +51,15 @@ if uploaded_file:
             # Adding RC Type column
             df["RC Type"] = df.apply(lambda row: "RC Not Received" if row["Project Status"] in ["Quote Revision", "Final PA Review"] else "RC Received", axis=1)
 
-            # Grouping data for visualization with count of Service Codes
+            # Grouping data for visualization
             rcc = df.groupby(['Category', 'RC Type']) \
                     .agg({
-                        'Split Man-Days': 'sum', 
-                        'Service Code': lambda x: list(set(x)),  # Unique Service Codes
-                        'Project Number': 'count'  # Counting occurrences of Service Codes
+                        'Split Man-Days': 'sum',  # Sum of Man-Days
+                        'Service Code': 'count'   # Count occurrences of Service Code
                     }) \
                     .reset_index()
 
-            rcc.columns = ['Category', 'RC Type', 'Man-Days', 'Service Code', 'Project Count']
+            rcc.columns = ['Category', 'RC Type', 'Man-Days', 'Service Code Count']
 
             # Dropdown for selecting category
             selected_category = st.selectbox("Select a Category", ["All"] + list(rcc["Category"].unique()))
@@ -68,15 +67,15 @@ if uploaded_file:
             # Filter data based on selection
             filtered_df = rcc if selected_category == "All" else rcc[rcc['Category'] == selected_category]
 
-            # Create bar chart with Project Count as text labels
+            # Create bar chart with Service Code Count as text labels
             fig = px.bar(
                 filtered_df,
                 x='Category',
                 y='Man-Days',
                 color='RC Type',
-                text='Project Count',  # Show the count of projects
+                text='Service Code Count',  # Show count of Service Codes in each category
                 barmode='stack',
-                title="Sum of Man-Days & Project Count Category-wise"
+                title="Sum of Man-Days & Service Code Count Category-wise"
             )
 
             fig.update_traces(texttemplate='%{text}', textposition='outside')
@@ -84,11 +83,11 @@ if uploaded_file:
             # Display plot
             st.plotly_chart(fig)
 
-            # Display project numbers when a category is selected
+            # Display detailed Service Code count per Category
             if selected_category != "All":
-                projects = df[df['Category'] == selected_category]['Service Code'].unique()
-                st.write(f"**Projects in {selected_category}:**")
-                st.write(", ".join(map(str, projects)) if projects.size > 0 else "No projects found.")
+                service_code_counts = df[df['Category'] == selected_category]['Service Code'].value_counts()
+                st.write(f"**Service Code Count in {selected_category}:**")
+                st.write(service_code_counts.to_frame().reset_index().rename(columns={'index': 'Service Code', 'Service Code': 'Count'}))
 
             # Function to download processed data
             def convert_df_to_excel(dataframe):
@@ -108,6 +107,7 @@ if uploaded_file:
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
+
 
 
 
