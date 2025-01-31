@@ -3,14 +3,18 @@ import streamlit as st
 import plotly.express as px
 from io import BytesIO
 
+# Streamlit Page Config with Dark Mode Support
+st.set_page_config(page_title="RC Analysis", layout="wide")
+
 # Define required columns
 REQUIRED_COLUMNS = ["Project Number", "Service Code", "Project Status", "Split MD Date Year-Month Label", "Split Man-Days", "Validity End Date"]
 
-# Streamlit UI
-st.title("Man-Days Category-wise Analysis")
+# Sidebar UI
+st.sidebar.header("Upload Your File 📂")
+uploaded_file = st.sidebar.file_uploader("Upload an Excel file", type=["xlsx"])
 
-# File uploader
-uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
+# Main Title
+st.title("📊 RC Analysis")
 
 if uploaded_file:
     try:
@@ -19,7 +23,7 @@ if uploaded_file:
         # Check if required columns are present
         missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
         if missing_columns:
-            st.error(f"Missing columns: {', '.join(missing_columns)}. Please upload a valid file.")
+            st.error(f"🚨 Missing columns: {', '.join(missing_columns)}. Please upload a valid file.")
         else:
             # Selecting the required columns
             df = df[REQUIRED_COLUMNS]
@@ -61,11 +65,19 @@ if uploaded_file:
 
             rcc.columns = ['Category', 'RC Type', 'Man-Days', 'Service Code Count']
 
-            # Dropdown for selecting category
-            selected_category = st.selectbox("Select a Category", ["All"] + list(rcc["Category"].unique()))
+            # Sidebar filter
+            selected_category = st.sidebar.selectbox("🔍 Select a Category", ["All"] + list(rcc["Category"].unique()))
 
             # Filter data based on selection
             filtered_df = rcc if selected_category == "All" else rcc[rcc['Category'] == selected_category]
+
+            # Metrics at the top
+            total_man_days = filtered_df["Man-Days"].sum()
+            total_service_codes = filtered_df["Service Code Count"].sum()
+            
+            col1, col2 = st.columns(2)
+            col1.metric("📅 Total Man-Days", f"{total_man_days:,.0f}")
+            col2.metric("📌 Total Service Codes", f"{total_service_codes:,.0f}")
 
             # Create bar chart with Service Code Count as text labels
             fig = px.bar(
@@ -75,38 +87,50 @@ if uploaded_file:
                 color='RC Type',
                 text='Service Code Count',  # Show count of Service Codes in each category
                 barmode='stack',
-                title="Sum of Man-Days & Service Code Count Category-wise"
+                title="📊 Sum of Man-Days & Service Code Count Category-wise",
+                color_discrete_map={"RC Received": "#636EFA", "RC Not Received": "#EF553B"}  # Custom colors
             )
 
             fig.update_traces(texttemplate='%{text}', textposition='outside')
 
             # Display plot
-            st.plotly_chart(fig)
+            st.plotly_chart(fig, use_container_width=True)
 
-            # Display detailed Service Code count per Category
+            # **Drill-down Feature: Click a Bar to See Service Code Details**
             if selected_category != "All":
+                st.subheader(f"📜 Detailed Service Code Breakdown for {selected_category}")
                 service_code_counts = df[df['Category'] == selected_category]['Service Code'].value_counts()
-                st.write(f"**Service Code Count in {selected_category}:**")
-                st.write(service_code_counts.to_frame().reset_index().rename(columns={'index': 'Service Code', 'Service Code': 'Count'}))
+                st.dataframe(service_code_counts.to_frame().reset_index().rename(columns={'index': 'Service Code', 'Service Code': 'Count'}), use_container_width=True)
 
-            # Function to download processed data
+            # Function to export data to Excel
             def convert_df_to_excel(dataframe):
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                     dataframe.to_excel(writer, index=False, sheet_name="Processed Data")
-                processed_data = output.getvalue()
-                return processed_data
+                return output.getvalue()
 
-            # Download button for processed file
-            st.download_button(
-                label="📥 Download Processed Data",
+            # Function to export data to CSV
+            def convert_df_to_csv(dataframe):
+                return dataframe.to_csv(index=False).encode('utf-8')
+
+            # Sidebar Download Options
+            st.sidebar.subheader("📥 Download Processed Data")
+            st.sidebar.download_button(
+                label="⬇️ Download Excel",
                 data=convert_df_to_excel(df),
                 file_name="processed_data.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+            st.sidebar.download_button(
+                label="⬇️ Download CSV",
+                data=convert_df_to_csv(df),
+                file_name="processed_data.csv",
+                mime="text/csv"
+            )
 
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"❌ An error occurred: {e}")
+
 
 
 
