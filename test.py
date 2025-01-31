@@ -61,7 +61,11 @@ if uploaded_file:
                     .reset_index()
             
             rcc.columns = ['Category', 'RC Type', 'Man-Days', 'Service Code Count', 'Project Numbers']
-
+            
+            # Count of projects under each service code
+            service_code_counts = df.groupby('Service Code')['Project Number'].nunique().reset_index()
+            service_code_counts.columns = ['Service Code', 'Project Count']
+            
             # Sidebar filters
             selected_category = st.sidebar.selectbox("🔍 Select a Category", ["All"] + list(rcc["Category"].unique()))
             filtered_df = rcc if selected_category == "All" else rcc[rcc['Category'] == selected_category]
@@ -93,6 +97,7 @@ if uploaded_file:
                 with st.expander(f"📜 View Project Numbers in {selected_category}"):
                     project_data = df[df['Category'] == selected_category][['Project Number', 'Service Code']].drop_duplicates()
                     st.dataframe(project_data, use_container_width=True)
+                    st.dataframe(service_code_counts, use_container_width=True)
 
                     # Download buttons
                     def convert_to_excel(dataframe):
@@ -113,6 +118,7 @@ if uploaded_file:
             st.sidebar.download_button("⬇️ Download CSV", data=convert_to_csv(df), file_name="processed_data.csv", mime="text/csv")
     except Exception as e:
         st.error(f"❌ An error occurred: {e}")
+
 
 
 
