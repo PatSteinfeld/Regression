@@ -4,7 +4,7 @@ import plotly.express as px
 from io import BytesIO
 
 # Streamlit Page Config with Dark Mode Support
-st.set_page_config(page_title="RC Analysis", layout="wide")
+st.set_page_config(page_title="Man-Days Analysis", layout="wide")
 
 # Define required columns
 REQUIRED_COLUMNS = ["Project Number", "Service Code", "Project Status", "Split MD Date Year-Month Label", "Split Man-Days", "Validity End Date"]
@@ -14,7 +14,7 @@ st.sidebar.header("Upload Your File 📂")
 uploaded_file = st.sidebar.file_uploader("Upload an Excel file", type=["xlsx"])
 
 # Main Title
-st.title("📊 RC Analysis")
+st.title("📊 Man-Days Category-wise Analysis")
 
 if uploaded_file:
     try:
@@ -59,11 +59,12 @@ if uploaded_file:
             rcc = df.groupby(['Category', 'RC Type']) \
                     .agg({
                         'Split Man-Days': 'sum',  # Sum of Man-Days
-                        'Service Code': 'count'   # Count occurrences of Service Code
+                        'Service Code': 'count',  # Count occurrences of Service Code
+                        'Project Number': lambda x: list(set(x))  # Collect unique project numbers
                     }) \
                     .reset_index()
 
-            rcc.columns = ['Category', 'RC Type', 'Man-Days', 'Service Code Count']
+            rcc.columns = ['Category', 'RC Type', 'Man-Days', 'Service Code Count', 'Project Numbers']
 
             # Sidebar filter
             selected_category = st.sidebar.selectbox("🔍 Select a Category", ["All"] + list(rcc["Category"].unique()))
@@ -96,20 +97,47 @@ if uploaded_file:
             # Display plot
             st.plotly_chart(fig, use_container_width=True)
 
-            # **Drill-down Feature: Click a Bar to See Service Code Details**
+            # **Project Numbers Table**
             if selected_category != "All":
-                st.subheader(f"📜 Detailed Service Code Breakdown for {selected_category}")
-                service_code_counts = df[df['Category'] == selected_category]['Service Code'].value_counts()
-                st.dataframe(service_code_counts.to_frame().reset_index().rename(columns={'index': 'Service Code', 'Service Code': 'Count'}), use_container_width=True)
+                st.subheader(f"📜 Project Numbers in {selected_category}")
+                
+                # Extract project numbers for selected category
+                project_data = df[df['Category'] == selected_category][['Project Number', 'Service Code']].drop_duplicates()
+                
+                st.dataframe(project_data, use_container_width=True)
 
-            # Function to export data to Excel
+                # **Download Filtered Project Numbers**
+                def convert_project_numbers_to_excel(dataframe):
+                    output = BytesIO()
+                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                        dataframe.to_excel(writer, index=False, sheet_name="Project Numbers")
+                    return output.getvalue()
+
+                def convert_project_numbers_to_csv(dataframe):
+                    return dataframe.to_csv(index=False).encode('utf-8')
+
+                st.download_button(
+                    label="⬇️ Download Project Numbers (Excel)",
+                    data=convert_project_numbers_to_excel(project_data),
+                    file_name=f"Project_Numbers_{selected_category}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+                st.download_button(
+                    label="⬇️ Download Project Numbers (CSV)",
+                    data=convert_project_numbers_to_csv(project_data),
+                    file_name=f"Project_Numbers_{selected_category}.csv",
+                    mime="text/csv"
+                )
+
+            # Function to export full dataset to Excel
             def convert_df_to_excel(dataframe):
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                     dataframe.to_excel(writer, index=False, sheet_name="Processed Data")
                 return output.getvalue()
 
-            # Function to export data to CSV
+            # Function to export full dataset to CSV
             def convert_df_to_csv(dataframe):
                 return dataframe.to_csv(index=False).encode('utf-8')
 
@@ -130,6 +158,7 @@ if uploaded_file:
 
     except Exception as e:
         st.error(f"❌ An error occurred: {e}")
+
 
 
 
