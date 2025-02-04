@@ -69,9 +69,7 @@ if uploaded_file:
             rcc = df.groupby(['Category', 'RC Type', "RC Sub-status"]) \
                 .agg({'Split Man-Days': 'sum', 'Project Planner': lambda x: list(set(x))}) \
                 .reset_index()
-                      # Enforce the correct category order
-            rcc["Category"] = pd.Categorical(rcc["Category"], categories=CATEGORY_ORDER, ordered=True)
-            rcc = rcc.sort_values("Category")
+
 
             rcc.columns = ['Category', 'RC Type', "RC Sub-status", 'Man-Days', 'Project Planner']
 
@@ -117,7 +115,7 @@ if uploaded_file:
             # Download button for processed file
             st.download_button(
                 label="📥 Download Processed Data",
-                data=convert_df_to_excel(rcc),
+                data=convert_df_to_excel(df),
                 file_name="processed_data.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
