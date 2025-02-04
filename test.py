@@ -38,11 +38,13 @@ if uploaded_file:
                 elif 0 <= diff <= 30:
                     return "0-30 days"
                 elif 31 <= diff <= 60:
-                    return "30-60 days"
+                    return "31-60 days"
                 elif 61 <= diff <= 90:
-                    return "60-90 days"
-                elif diff > 90:
-                    return "90+ days"
+                    return "61-90 days"
+                elif  91 <= diff <= 180:
+                    return " 91-180 days"
+                elif diff > 180:
+                    return "180+ days"
                 else:
                     return "NA"
 
