@@ -34,7 +34,7 @@ if uploaded_file:
             # Categorizing the difference
             def categorize_days(diff):
                 if pd.isna(diff):
-                    return "NA"
+                    return "N/A"
                 elif 0 <= diff <= 30:
                     return "0-30 days"
                 elif 31 <= diff <= 60:
