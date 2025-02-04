@@ -1,3 +1,4 @@
+
 import pandas as pd
 import streamlit as st
 import plotly.express as px
@@ -109,19 +110,31 @@ if uploaded_file:
 
             # Function to download processed data
             def convert_df_to_excel(dataframe):
+                CATEGORY_ORDER = ["0-30 days", "31-60 days", "61-90 days", "91-180 days", "180+ days", "N/A"]
+                
+                # Ensure 'Category' is ordered correctly
+                dataframe["Category"] = pd.Categorical(dataframe["Category"].astype(str).str.strip(), 
+                                                       categories=CATEGORY_ORDER, ordered=True)
+                
+                # Sort the dataframe
+                dataframe = dataframe.sort_values("Category")
+                
+                # Convert to Excel
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                     dataframe.to_excel(writer, index=False, sheet_name="Processed Data")
+                
                 processed_data = output.getvalue()
                 return processed_data
-
-            # Download button for processed file
+            
+            # Streamlit Download Button (Using Sorted Data)
             st.download_button(
                 label="📥 Download Processed Data",
-                data=convert_df_to_excel(df),
+                data=convert_df_to_excel(df),  # This ensures sorting before download
                 file_name="processed_data.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
