@@ -7,6 +7,9 @@ from io import BytesIO
 REQUIRED_COLUMNS = ["Project Number", "Project Planner", "Project Status", 
                     "Split MD Date Year-Month Label", "Split Man-Days", "End Date"]
 
+# Define category order for proper sorting
+CATEGORY_ORDER = ["0-30 days", "31-60 days", "61-90 days", "91-180 days", "180+ days", "N/A"]
+
 # Streamlit UI
 st.title("RC Analysis")
 
@@ -29,12 +32,10 @@ if uploaded_file:
             df["Split MD Date Year-Month Label"] = pd.to_datetime(df["Split MD Date Year-Month Label"], errors='coerce')
             df["End Date"] = pd.to_datetime(df["End Date"], errors='coerce')
 
-            # Calculate the difference in days, weeks, and months
-            df["Date Difference (Days)"] = (df["End Date"] - df["Split MD Date Year-Month Label"]).dt.days
-            df["Date Difference (Weeks)"] = df["Date Difference (Days)"] // 7  # Convert days to weeks
-            df["Date Difference (Months)"] = df["Date Difference (Days)"] // 30  # Approximate months
+            # Calculate the difference in days
+            df["Date Difference"] = (df["End Date"] - df["Split MD Date Year-Month Label"]).dt.days
 
-            # Categorizing the difference based on weeks and months
+            # Categorizing the difference
             def categorize_days(diff):
                 if pd.isna(diff):
                     return "N/A"
@@ -49,60 +50,48 @@ if uploaded_file:
                 elif diff > 180:
                     return "180+ days"
                 else:
-                    return "NA"
-
-            df["Category (Days)"] = df["Date Difference (Days)"].apply(categorize_days)
-
-            # Categorization by weeks
-            def categorize_weeks(diff):
-                if pd.isna(diff):
                     return "N/A"
-                elif diff <= 4:
-                    return "0-4 weeks"
-                elif diff <= 8:
-                    return "5-8 weeks"
-                elif diff <= 12:
-                    return "9-12 weeks"
-                elif diff <= 24:
-                    return "13-24 weeks"
-                else:
-                    return "24+ weeks"
 
-            df["Category (Weeks)"] = df["Date Difference (Weeks)"].apply(categorize_weeks)
+            df["Category"] = df["Date Difference"].apply(categorize_days)
 
             # Adding RC Type column
             df["RC Type"] = df.apply(lambda row: "RC Not Received" if row["Project Status"] in ["Quote Revision", "Final PA Review"] else "RC Received", axis=1)
 
-            # Corrected RC Sub-status logic
-            def assign_rc_sub_status(row):
-                if row["RC Type"] == "RC Not Received":
-                    return row["Project Status"]
-                return "RC Received"
-
-            df["RC Sub-status"] = df.apply(assign_rc_sub_status, axis=1)
+            # Adding RC Type column
+            df["RC Type"] = df.apply(lambda row: "RC Not Received" if row["Project Status"] in ["Quote Revision", "Final PA Review"] else "RC Received", axis=1)
+            df["RC Sub-status"] = df.apply(lambda row: "Quote Revision" if row["RC Type"] == "RC Not Received" and row["Project Status"] == "Quote Revision" else "Final PA Review",axis=1)
+            # Grouping data for visualization
+            rcc = df.groupby(['Category', 'RC Type',"RC Sub-status"]) \
+                    .agg({'Split Man-Days': 'sum', 'Project Planner': lambda x: list(set(x))}) \
+                    .reset_index()
 
             # Grouping data for visualization
-            rcc = df.groupby(['Category (Days)', 'RC Type', "RC Sub-status"]) \
+            rcc = df.groupby(['Category', 'RC Type', "RC Sub-status"]) \
                 .agg({'Split Man-Days': 'sum', 'Project Planner': lambda x: list(set(x))}) \
                 .reset_index()
 
-            rcc.columns = ['Category (Days)', 'RC Type', "RC Sub-status", 'Man-Days', 'Project Planner']
+            rcc.columns = ['Category', 'RC Type', "RC Sub-status", 'Man-Days', 'Project Planner']
+
+            # Enforce the correct category order
+            rcc["Category"] = pd.Categorical(rcc["Category"], categories=CATEGORY_ORDER, ordered=True)
+            rcc = rcc.sort_values("Category")
 
             # Dropdown for selecting category
-            selected_category = st.selectbox("Select a Category (Days)", ["All"] + list(rcc["Category (Days)"].unique()))
+            selected_category = st.selectbox("Select a Category", ["All"] + list(CATEGORY_ORDER))
 
             # Filter data based on selection
-            filtered_df = rcc if selected_category == "All" else rcc[rcc['Category (Days)'] == selected_category]
+            filtered_df = rcc if selected_category == "All" else rcc[rcc['Category'] == selected_category]
 
-            # Create bar chart
+            # Create bar chart with ordered categories
             fig = px.bar(
                 filtered_df,
-                x='Category (Days)',
+                x='Category',
                 y='Man-Days',
                 color='RC Type',
                 text='Man-Days',
                 barmode='stack',
-                title="Sum of Man-Days Category-wise"
+                title="Sum of Man-Days Category-wise",
+                category_orders={"Category": CATEGORY_ORDER}  # Ensures correct order in the chart
             )
 
             fig.update_traces(texttemplate='%{text}', textposition='outside')
@@ -112,7 +101,7 @@ if uploaded_file:
 
             # Display project planners when a category is selected
             if selected_category != "All":
-                projects = df[df['Category (Days)'] == selected_category]['Project Planner'].unique()
+                projects = df[df['Category'] == selected_category]['Project Planner'].unique()
                 st.write(f"**Project Planners in {selected_category}:**")
                 st.write(", ".join(map(str, projects)) if projects.size > 0 else "No planners found.")
 
@@ -134,6 +123,7 @@ if uploaded_file:
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
+
 
 
 
