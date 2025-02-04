@@ -73,7 +73,7 @@ if uploaded_file:
 
 
             # Dropdown for selecting category
-            selected_category = st.selectbox("Select a Category", ["All"] + list(CATEGORY_ORDER))
+            selected_category = st.selectbox("Select a Category", ["All"] )
 
             # Filter data based on selection
             filtered_df = rcc if selected_category == "All" else rcc[rcc['Category'] == selected_category]
@@ -87,7 +87,7 @@ if uploaded_file:
                 text='Man-Days',
                 barmode='stack',
                 title="Sum of Man-Days Category-wise",
-                category_orders={"Category": CATEGORY_ORDER}  # Ensures correct order in the chart
+                
             )
 
             fig.update_traces(texttemplate='%{text}', textposition='outside')
