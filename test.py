@@ -26,10 +26,10 @@ if uploaded_file:
 
             # Convert date columns to datetime format
             df["Split MD Date Year-Month Label"] = pd.to_datetime(df["Split MD Date Year-Month Label"], errors='coerce')
-            df["Validity End Date"] = pd.to_datetime(df["Validity End Date"], errors='coerce')
+            df["End Date"] = pd.to_datetime(df["End Date"], errors='coerce')
 
             # Calculate the difference in days
-            df["Date Difference"] = (df["Validity End Date"] - df["Split MD Date Year-Month Label"]).dt.days
+            df["Date Difference"] = (df["End Date"] - df["Split MD Date Year-Month Label"]).dt.days
 
             # Categorizing the difference
             def categorize_days(diff):
