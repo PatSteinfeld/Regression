@@ -7,8 +7,7 @@ from io import BytesIO
 REQUIRED_COLUMNS = ["Project Number", "Project Planner", "Project Status", 
                     "Split MD Date Year-Month Label", "Split Man-Days", "End Date"]
 
-# Define category order for proper sorting
-CATEGORY_ORDER = ["0-30 days", "31-60 days", "61-90 days", "91-180 days", "180+ days", "N/A"]
+
 
 # Streamlit UI
 st.title("RC Analysis")
@@ -54,10 +53,14 @@ if uploaded_file:
 
             df["Category"] = df["Date Difference"].apply(categorize_days)
             # Convert 'Category' into an ordered categorical type
-            df["Category"] = pd.Categorical(df["Category"], categories=CATEGORY_ORDER, ordered=True)
+            CATEGORY_ORDER = ["0-30 days", "31-60 days", "61-90 days", "91-180 days", "180+ days", "N/A"]
             
-            # Sort the dataframe based on this order
+            # Convert 'Category' into an ordered categorical type
+            df["Category"] = pd.Categorical(df["Category"].astype(str).str.strip(), categories=CATEGORY_ORDER, ordered=True)
+            
+            # Sort the dataframe
             df = df.sort_values("Category")
+
 
             # Adding RC Type column
             df["RC Type"] = df.apply(lambda row: "RC Not Received" if row["Project Status"] in ["Quote Revision", "Final PA Review"] else "RC Received", axis=1)
