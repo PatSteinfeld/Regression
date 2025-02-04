@@ -59,11 +59,9 @@ if uploaded_file:
 
             # Adding RC Type column
             df["RC Type"] = df.apply(lambda row: "RC Not Received" if row["Project Status"] in ["Quote Revision", "Final PA Review"] else "RC Received", axis=1)
-            df["RC Sub-status"] = df.apply(lambda row: "Quote Revision" if row["RC Type"] == "RC Not Received" and row["Project Status"] == "Quote Revision" else "Final PA Review" if row["RC Type"] == "RC Not Received" and row["Project Status"] == "Final PA Review" else "Not Applicable" ,axis=1)
-            # Grouping data for visualization
-            rcc = df.groupby(['Category', 'RC Type',"RC Sub-status"]) \
-                    .agg({'Split Man-Days': 'sum', 'Project Planner': lambda x: list(set(x))}) \
-                    .reset_index()
+            # Enforce the correct category order
+            rcc["Category"] = pd.Categorical(rcc["Category"], categories=CATEGORY_ORDER, ordered=True)
+            rcc = rcc.sort_values("Category")
 
             # Grouping data for visualization
             rcc = df.groupby(['Category', 'RC Type', "RC Sub-status"]) \
@@ -72,9 +70,7 @@ if uploaded_file:
 
             rcc.columns = ['Category', 'RC Type', "RC Sub-status", 'Man-Days', 'Project Planner']
 
-            # Enforce the correct category order
-            rcc["Category"] = pd.Categorical(rcc["Category"], categories=CATEGORY_ORDER, ordered=True)
-            rcc = rcc.sort_values("Category")
+
 
             # Dropdown for selecting category
             selected_category = st.selectbox("Select a Category", ["All"] + list(CATEGORY_ORDER))
