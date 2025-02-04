@@ -101,13 +101,7 @@ if uploaded_file:
                 st.write(f"**Project Planners in {selected_category}:**")
                 st.write(", ".join(map(str, projects)) if projects.size > 0 else "No planners found.")
 
-            # Function to download processed data
-            def convert_df_to_excel(dataframe):
-                CATEGORY_ORDER = ["0-30 days", "31-60 days", "61-90 days", "91-180 days", "180+ days", "N/A"]
-                
-                # Ensure 'Category' is ordered correctly
-                dataframe["Category"] = pd.Categorical(dataframe["Category"].astype(str).str.strip(), 
-                                                       categories=CATEGORY_ORDER, ordered=True)
+
                 
                 # Sort the dataframe
                 dataframe = dataframe.sort_values("Category")
