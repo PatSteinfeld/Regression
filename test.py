@@ -53,6 +53,11 @@ if uploaded_file:
                     return "N/A"
 
             df["Category"] = df["Date Difference"].apply(categorize_days)
+            # Convert 'Category' into an ordered categorical type
+            df["Category"] = pd.Categorical(df["Category"], categories=CATEGORY_ORDER, ordered=True)
+            
+            # Sort the dataframe based on this order
+            df = df.sort_values("Category")
 
             # Adding RC Type column
             df["RC Type"] = df.apply(lambda row: "RC Not Received" if row["Project Status"] in ["Quote Revision", "Final PA Review"] else "RC Received", axis=1)
