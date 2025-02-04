@@ -54,7 +54,7 @@ if uploaded_file:
 
             df["Category"] = df["Date Difference"].apply(categorize_days)
             # Convert 'Category' into an ordered categorical type
-            CATEGORY_ORDER = ["0-30 days", "31-60 days", "61-90 days", "91-180 days", "180+ days", "N/A"]
+            CATEGORY_ORDER = ["0-30 days", "31-60 days", "61-90 days", "91-180 days", "More then 180 days", "N/A"]
             
             # Convert 'Category' into an ordered categorical type
             df["Category"] = pd.Categorical(df["Category"].astype(str).str.strip(), categories=CATEGORY_ORDER, ordered=True)
