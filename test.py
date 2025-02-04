@@ -112,7 +112,7 @@ if uploaded_file:
             # Download button for processed file
             st.download_button(
                 label="📥 Download Processed Data",
-                data=convert_df_to_excel(df),
+                data=convert_df_to_excel(rcc),
                 file_name="processed_data.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
