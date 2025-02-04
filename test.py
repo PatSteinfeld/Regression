@@ -48,7 +48,7 @@ if uploaded_file:
                 elif 91 <= diff <= 180:
                     return "91-180 days"
                 elif diff > 180:
-                    return "180+ days"
+                    return "More then 180 days"
                 else:
                     return "N/A"
 
