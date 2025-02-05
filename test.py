@@ -29,7 +29,7 @@ if uploaded_file:
             df["Certificate Validity End Date"] = pd.to_datetime(df["Certificate Validity End Date"], errors='coerce')
 
             # Calculate the difference in days
-            df["Date Difference"] = (df["End Date"] - df["Split MD Date"]).dt.days
+            df["Date Difference"] = (df["Certificate Validity End Date"] - df["Split MD Date"]).dt.days
 
             # Categorizing the difference
             def categorize_days(diff):
