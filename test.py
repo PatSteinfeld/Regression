@@ -52,7 +52,7 @@ if uploaded_file:
 
             # Adding RC Type column
             df["RC Type"] = df.apply(lambda row: "RC Not Received" if row["Project Status"] in ["Quote Revision", "Final PA Review"] else "RC Received", axis=1)
-            df["RC Sub-status"] = df.apply(lambda row: "Quote Revision" if row["RC Type"] == "RC Not Received" and row["Project Status"] == "Quote Revision" else "Final PA Review", axis=1)
+            #df["RC Sub-status"] = df.apply(lambda row: "Quote Revision" if row["RC Type"] == "RC Not Received" and row["Project Status"] == "Quote Revision" else "Final PA Review", axis=1)
 
             # Sort Category column based on defined order
             CATEGORY_ORDER = ["0-30 days", "31-60 days", "61-90 days", "91-180 days","More than 180 days", "N/A"]
@@ -64,11 +64,11 @@ if uploaded_file:
             df = df.sort_values("Category")
 
             # Grouping data for visualization
-            rcc = df.groupby(['Category', 'RC Type', "RC Sub-status"]) \
+            rcc = df.groupby(['Category', 'RC Type']) \
                     .agg({'Split Man-Days': 'sum', 'Project Planner': lambda x: list(set(x))}) \
                     .reset_index()
 
-            rcc.columns = ['Category', 'RC Type', "RC Sub-status", 'Man-Days', 'Project Planner']
+            rcc.columns = ['Category', 'RC Type',  'Man-Days', 'Project Planner']
 
             # Dropdown for selecting category
             selected_category = st.selectbox("Select a Category", ["All"] + list(rcc["Category"].unique()))
