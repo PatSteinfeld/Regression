@@ -4,7 +4,7 @@ import plotly.express as px
 from io import BytesIO
 
 # Define required columns
-REQUIRED_COLUMNS = ["Project Number", "Project Planner", "Project Status", "Split MD Date Year-Month Label", "Split Man-Days", "End Date"]
+REQUIRED_COLUMNS = ["Project Number", "Project Planner", "Project Status", "Split MD Date", "Split Man-Days", "Certificate Validity End Date"]
 
 # Streamlit UI
 st.title("RC Analysis")
@@ -25,11 +25,11 @@ if uploaded_file:
             df = df[REQUIRED_COLUMNS]
 
             # Convert date columns to datetime format
-            df["Split MD Date Year-Month Label"] = pd.to_datetime(df["Split MD Date Year-Month Label"], errors='coerce')
-            df["End Date"] = pd.to_datetime(df["End Date"], errors='coerce')
+            df["Split MD Date"] = pd.to_datetime(df["Split MD Date"], errors='coerce')
+            df["Certificate Validity End Date"] = pd.to_datetime(df["Certificate Validity End Date"], errors='coerce')
 
             # Calculate the difference in days
-            df["Date Difference"] = (df["End Date"] - df["Split MD Date Year-Month Label"]).dt.days
+            df["Date Difference"] = (df["End Date"] - df["Split MD Date"]).dt.days
 
             # Categorizing the difference
             def categorize_days(diff):
