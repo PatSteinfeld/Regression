@@ -4,7 +4,7 @@ import plotly.express as px
 from io import BytesIO
 
 # Define required columns
-REQUIRED_COLUMNS = ["Project Number", "Project Planner", "Project Status", "Split MD Date", "Split Man-Days", "Certificate Validity End Date"]
+REQUIRED_COLUMNS = ["Project Number", "Project Planner","Activity ID", "Project Status", "Split MD Date", "Split Man-Days", "Certificate Validity End Date"]
 
 # Streamlit UI
 st.title("RC Analysis")
@@ -54,7 +54,7 @@ if uploaded_file:
             df["RC Type"] = df.apply(lambda row: "RC Not Received" if row["Project Status"] in ["Quote Revision", "Final PA Review"] else "RC Received", axis=1)
             #df["RC Sub-status"] = df.apply(lambda row: "Quote Revision" if row["RC Type"] == "RC Not Received" and row["Project Status"] == "Quote Revision" else "Final PA Review", axis=1)
              # Drop duplicate rows based on specific columns
-            df = df.drop_duplicates(subset=["Project Number", "Project Planner", "Project Status", "Split MD Date", "Split Man-Days", "Certificate Validity End Date"],keep="first")
+            df = df.drop_duplicates(subset=["Project Number", "Project Planner","Activity ID", "Project Status", "Split MD Date", "Split Man-Days", "Certificate Validity End Date"],keep="first")
 
             # Sort Category column based on defined order
             CATEGORY_ORDER = ["0-30 days", "31-60 days", "61-90 days", "91-180 days","More than 180 days", "N/A"]
