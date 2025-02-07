@@ -4,7 +4,7 @@ import plotly.express as px
 from io import BytesIO
 
 # Define required columns
-REQUIRED_COLUMNS = ["Project Number", "Project Planner","Activity ID", "Project Status", "Split MD Date", "Split Man-Days", "Certificate Validity End Date"]
+REQUIRED_COLUMNS = ["Project Number","Project Responsible", "Project Planner","Activity ID", "Project Status", "Split MD Date", "Split Man-Days", "Certificate Validity End Date"]
 
 # Streamlit UI
 st.title("RC Analysis")
