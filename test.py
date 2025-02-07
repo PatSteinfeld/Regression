@@ -69,6 +69,10 @@ if uploaded_file:
             rcc = df.groupby(['Category', 'RC Type']) \
                     .agg({'Split Man-Days': 'sum', 'Project Planner': lambda x: list(set(x))}) \
                     .reset_index()
+            #'Project Responsible'
+            rcc = df.groupby(['Category', 'RC Type']) \
+                    .agg({'Split Man-Days': 'sum', 'Project Responsible': lambda x: list(set(x))}) \
+                    .reset_index()
 
             rcc.columns = ['Category', 'RC Type',  'Man-Days', 'Project Planner','Project Responsible']
 
