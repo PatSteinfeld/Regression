@@ -25,9 +25,9 @@ if uploaded_file:
             df = df[REQUIRED_COLUMNS]
 
             # Convert both date columns to datetime format in one step
-            df[["Split MD Date", "Certificate Validity End Date"]] = df[
-                ["Split MD Date", "Certificate Validity End Date"]
-            ].apply(pd.to_datetime, errors='coerce')
+            #df[["Split MD Date", "Certificate Validity End Date"]] = df[
+               # ["Split MD Date", "Certificate Validity End Date"]
+            #].apply(pd.to_datetime, errors='coerce')
             
             # Compute the date difference in days
             df["Date Difference"] = (df["Certificate Validity End Date"] - df["Split MD Date"]).dt.days
