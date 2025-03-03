@@ -14,9 +14,20 @@ def load_excel(file):
     return df
 
 def process_data(df):
-    """Extract relevant data from the first sheet."""
-    planned_audits = df[list(df.keys())[0]].iloc[:, :10]  # Adjust if needed
-    return planned_audits
+    """Extract relevant activities under 'Process/Activities per shift and/or site'."""
+    first_sheet = list(df.keys())[0]
+    data = df[first_sheet]
+
+    # Find the row index where 'Process/Activities per shift and/or site' appears
+    activity_start_idx = data[data.iloc[:, 0].astype(str).str.contains("Process/Activities per shift", na=False)].index
+
+    if not activity_start_idx.empty:
+        start_index = activity_start_idx[0] + 1  # Activities start from the next row
+        filtered_data = data.iloc[start_index:].reset_index(drop=True)  # Extract relevant activities
+    else:
+        filtered_data = pd.DataFrame()  # Return empty if no match found
+
+    return filtered_data
 
 def generate_schedule(data, auditors, start_time, end_time):
     """Generate a schedule ensuring constraints like lunch break and end time."""
@@ -40,7 +51,7 @@ def generate_schedule(data, auditors, start_time, end_time):
 
         schedule.append({
             "Time": time_slot,
-            "Activity": row["ACTIVITY"],
+            "Activity": row.iloc[0],  # Use the first column for activity names
             "Auditor": auditors[index % num_auditors]  # Assign auditor in round-robin
         })
 
@@ -64,7 +75,11 @@ def main():
         df_dict = load_excel(uploaded_file)
         data = process_data(df_dict)
 
-        st.write("### Extracted Data")
+        if data.empty:
+            st.error("Could not find 'Process/Activities per shift and/or site' section. Please check the file format.")
+            return
+
+        st.write("### Extracted Activities")
         st.dataframe(data)
 
         auditors = st.text_area("Enter Auditors (comma-separated)").split(",")
