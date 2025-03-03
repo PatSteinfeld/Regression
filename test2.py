@@ -9,18 +9,25 @@ def load_excel(file):
 def process_data(df, selected_sheet):
     df_sheet = df[selected_sheet]
     
-    # Get all column names
-    columns = list(df_sheet.columns)
-    st.write("### Available Columns in Sheet")
-    st.write(columns)  # Show columns for debugging
+    # Display available columns for debugging
+    st.write("### Available Columns in the Selected Sheet:")
+    st.write(df_sheet.columns.tolist())  # Show column names for reference
     
-    # Use "PLANNED AUDITS" as the activity column
-    activity_column = "PLANNED AUDITS"
+    # Try to identify the correct column dynamically
+    possible_columns = ["PLANNED AUDITS", "ACTIVITY", "PROCESS/ACTIVITIES PER SHIFT AND/OR SITE (WHEN APPLICABLE)"]
     
-    if activity_column in df_sheet.columns:
-        planned_audits = df_sheet[[activity_column]].dropna().reset_index(drop=True)
+    found_column = None
+    for col in df_sheet.columns:
+        clean_col = col.strip().upper()  # Normalize column names
+        if clean_col in [c.upper() for c in possible_columns]:
+            found_column = col
+            break
+    
+    if found_column:
+        st.success(f"Using column: {found_column}")
+        planned_audits = df_sheet[[found_column]].dropna().reset_index(drop=True)
     else:
-        st.error(f"Column '{activity_column}' not found. Please check the sheet.")
+        st.error("No matching column found. Please check your Excel sheet.")
         planned_audits = pd.DataFrame()  # Return empty DataFrame if column is missing
     
     return planned_audits
@@ -79,6 +86,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
