@@ -17,33 +17,35 @@ def extract_relevant_data(df):
 def generate_schedule(data, auditors, mandays, start_date, start_time, end_time):
     """Generate the audit schedule while distributing mandays and skipping lunch break."""
     schedule = []
-    total_hours = mandays * 8  # Total hours available for scheduling
-    hours_per_activity = total_hours / len(data)  # Distribute total mandays equally
-    lunch_break = datetime.time(13, 0)
-    lunch_duration = datetime.timedelta(minutes=30)
-
+    total_hours = mandays * 8  # Total available hours
+    hours_per_activity = total_hours / len(data)  # Distribute equally
+    lunch_start = datetime.time(13, 0)
+    lunch_end = datetime.time(13, 30)
+    
     current_time = start_time
     current_date = start_date
+    auditor_count = len(auditors)
 
-    for index, row in data.iterrows():
+    for i, activity in enumerate(data.iloc[:, 0]):  # Select first column dynamically
         if total_hours <= 0:
             break  # Stop scheduling when all mandays are used
-
-        if current_time >= end_time:  # Shift to next day if end time is reached
+        
+        if current_time >= end_time:  # Shift to next day
             current_date += datetime.timedelta(days=1)
             current_time = start_time
 
-        if current_time == lunch_break:  # Skip lunch break
-            current_time = (datetime.datetime.combine(datetime.date.today(), current_time) + lunch_duration).time()
+        # Skip lunch break if time overlaps
+        if lunch_start <= current_time < lunch_end:
+            current_time = lunch_end
 
         end_activity_time = (datetime.datetime.combine(datetime.date.today(), current_time) + datetime.timedelta(hours=hours_per_activity)).time()
 
         schedule.append({
             "Date": current_date,
-            "Start Time": current_time,
-            "End Time": end_activity_time,
-            "Activity": row[df.columns[0]],
-            "Auditor": auditors[index % len(auditors)]
+            "Start Time": current_time.strftime("%H:%M"),
+            "End Time": end_activity_time.strftime("%H:%M"),
+            "Activity": activity,
+            "Auditor": auditors[i % auditor_count]  # Cycle through auditors
         })
 
         current_time = end_activity_time
