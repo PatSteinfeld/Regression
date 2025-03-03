@@ -1,41 +1,74 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from openpyxl import load_workbook
+from tempfile import NamedTemporaryFile
 
-@st.cache_data
-def extract_data_from_pap(file):
+@st.cache_data(show_spinner=False)
+def unmerge_excel(file):
     """
-    Extracts data from the PAP sheet of the uploaded Excel file.
-    
-    Structure:
-    - Row 7 (index 6): Audit Types (columns 1 onward)
-    - Row 8 (index 7): Number of Man-Days (columns 1 onward; only numeric values are kept)
-    - Row 9 (index 8): Proposed Audit Dates (columns 1 onward)
-    - Row 12 onward (index 12): Sites are assumed to be in column index 10,
-      and associated activities (if available) are in column index 12.
+    Opens the Excel file (from a BytesIO stream), unmerges all cells by copying the value
+    from the top-left cell of each merged range into all cells in that range,
+    and then saves the cleaned workbook to a temporary file.
+    Returns the temporary file path.
     """
-    # Load the Excel file and read the PAP sheet without header inference
-    xls = pd.ExcelFile(file)
-    pap_df = pd.read_excel(xls, sheet_name="PAP", header=None)
+    # Load workbook from file-like object (BytesIO)
+    wb = load_workbook(file, data_only=True)
+    for sheet in wb.worksheets:
+        merged_ranges = list(sheet.merged_cells.ranges)
+        for merged_range in merged_ranges:
+            min_row, min_col, max_row, max_col = merged_range.bounds
+            # Get value from top-left cell
+            top_left_value = sheet.cell(row=min_row, column=min_col).value
+            # Fill each cell in the merged range with this value
+            for row in range(min_row, max_row + 1):
+                for col in range(min_col, max_col + 1):
+                    sheet.cell(row=row, column=col).value = top_left_value
+            # Unmerge the cells
+            sheet.unmerge_cells(str(merged_range))
+    # Save the cleaned workbook to a temporary file
+    tmp = NamedTemporaryFile(delete=False, suffix=".xlsx")
+    wb.save(tmp.name)
+    tmp.close()
+    return tmp.name
+
+@st.cache_data(show_spinner=False)
+def extract_data_from_cleaned_excel(file):
+    """
+    Preprocess the Excel file by unmerging cells, then extract required data from the PAP sheet.
     
-    # Extract Audit Types from row 7 (index 6), starting at column 1
+    Extraction Logic (based on manual inspection):
+    - Audit Types: Row 7 (index 6), starting at column index 1 onward.
+    - Number of Man-Days: Row 8 (index 7), starting at column index 1; only numeric values are kept.
+    - Proposed Audit Dates: Row 9 (index 8), starting at column index 1.
+    - Sites: Assumed to be in column index 10 from row 12 onward.
+    - Activities: Assumed to be in column index 12 adjacent to the site rows.
+    """
+    # Preprocess the file (unmerge cells)
+    cleaned_file = unmerge_excel(file)
+    
+    # Read the PAP sheet without header inference (to use custom indexing)
+    pap_df = pd.read_excel(cleaned_file, sheet_name="PAP", header=None)
+    
+    # --- Extract Audit Details ---
+    # Audit Types: row index 6, starting from column index 1
     audit_types_raw = pap_df.iloc[6, 1:].dropna().tolist()
     audit_types = [x for x in audit_types_raw if isinstance(x, str) and "insert" not in x]
     
-    # Extract Man-Days from row 8 (index 7), starting at column 1; keep only numeric values
+    # Man-Days: row index 7, starting from column index 1; keep only numeric values
     man_days_raw = pap_df.iloc[7, 1:].dropna().tolist()
     man_days = [x for x in man_days_raw if isinstance(x, (int, float))]
     
-    # Extract Proposed Audit Dates from row 9 (index 8), starting at column 1
+    # Proposed Audit Dates: row index 8, starting from column index 1; filter out extraneous text
     audit_dates_raw = pap_df.iloc[8, 1:].dropna().tolist()
     audit_dates = [x for x in audit_dates_raw if isinstance(x, str) and "Site" not in x]
     
-    # Extract Sites from the PAPENDA section
-    # Assuming sites are in column index 10 from row 12 onward
+    # --- Extract Sites and Activities ---
+    # Assume Sites are in column index 10, from row index 12 to 30
     sites_raw = pap_df.iloc[12:30, 10].dropna().tolist()
-    sites = sites_raw  # List of site names
+    sites = sites_raw
     
-    # Extract activities: assume they are in column index 12 adjacent to the sites
+    # Activities: Assume they are in column index 12 (adjacent to the site rows)
     activities_dict = {}
     for idx, site in enumerate(sites_raw):
         try:
@@ -56,12 +89,13 @@ def extract_data_from_pap(file):
     }
 
 def main():
-    st.title("Audit Planner (PAP Sheet)")
+    st.title("Audit Planner (PAP Sheet) - Improved Extraction")
+    st.write("This app preprocesses a complex Excel file (with merged cells and multiple headers) to extract audit details.")
     
-    # File Upload
+    # 1️⃣ File Upload
     uploaded_file = st.file_uploader("Upload the Excel File", type=["xlsm", "xlsx"])
     if uploaded_file:
-        data = extract_data_from_pap(uploaded_file)
+        data = extract_data_from_cleaned_excel(uploaded_file)
         
         st.subheader("Extracted Data")
         st.write("**Audit Types:**", data["audit_types"])
@@ -69,7 +103,7 @@ def main():
         st.write("**Proposed Audit Dates:**", data["audit_dates"])
         st.write("**Sites:**", data["sites"])
         
-        # User Inputs
+        # 2️⃣ User Inputs
         num_auditors = st.selectbox("Select Number of Auditors", list(range(1, 11)))
         
         auditor_names_input = st.text_input("Enter Auditor Names (comma separated)")
@@ -83,7 +117,7 @@ def main():
         activity_for_site = data["activities"].get(selected_site, "No activity specified")
         st.write("**Activity for selected site:**", activity_for_site)
         
-        # Generate Audit Plan
+        # 3️⃣ Generate Audit Plan
         if st.button("Generate Audit Plan"):
             try:
                 index = data["audit_types"].index(selected_audit_type)
@@ -112,6 +146,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
