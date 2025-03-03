@@ -1,22 +1,10 @@
 import streamlit as st
 import pandas as pd
 import datetime
-import re
 
 def load_excel(file):
     df = pd.read_excel(file, sheet_name=None)
     return df
-
-def find_matching_column(columns, target):
-    """Find a column that matches the target name case-insensitively and ignores spaces."""
-    target_cleaned = re.sub(r'\s+', ' ', target.strip()).lower()  # Normalize target
-    
-    for col in columns:
-        col_cleaned = re.sub(r'\s+', ' ', col.strip()).lower()  # Normalize column
-        if target_cleaned in col_cleaned:  # Partial match
-            return col  # Return actual column name
-    
-    return None  # No match found
 
 def process_data(df, selected_sheet):
     df_sheet = df[selected_sheet]
@@ -26,14 +14,13 @@ def process_data(df, selected_sheet):
     st.write("### Available Columns in Sheet")
     st.write(columns)  # Show columns for debugging
     
-    # Find matching column
-    target_column = "Process/Activities per shift and/or site (when applicable)"
-    matched_column = find_matching_column(columns, target_column)
+    # Use "PLANNED AUDITS" as the activity column
+    activity_column = "PLANNED AUDITS"
     
-    if matched_column:
-        planned_audits = df_sheet[[matched_column]].dropna().reset_index(drop=True)
+    if activity_column in df_sheet.columns:
+        planned_audits = df_sheet[[activity_column]].dropna().reset_index(drop=True)
     else:
-        st.error(f"Column similar to '{target_column}' not found in the selected sheet.")
+        st.error(f"Column '{activity_column}' not found. Please check the sheet.")
         planned_audits = pd.DataFrame()  # Return empty DataFrame if column is missing
     
     return planned_audits
