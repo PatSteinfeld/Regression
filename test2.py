@@ -28,6 +28,7 @@ def process_data(df):
     if not activity_start_idx.empty:
         start_index = activity_start_idx[0] + 1  # Activities start from the next row
         filtered_data = data.iloc[start_index:].reset_index(drop=True)  # Extract relevant activities
+        filtered_data = filtered_data[filtered_data.iloc[:, 0].notna()]  # Remove "None" activities
     else:
         filtered_data = pd.DataFrame()  # Return empty if no match found
 
@@ -46,12 +47,6 @@ def generate_schedule(data, auditors, mandays, start_date):
     # Calculate available working hours per day considering all auditors
     total_hours_per_day = num_auditors * hours_per_day_per_auditor
 
-    # Ensure both auditors are present for the opening and closing meetings
-    opening_meeting_duration = 0.5  # 30 minutes
-    closing_meeting_duration = 0.5  # 30 minutes
-    lunch_break_start = datetime.time(13, 0)
-    lunch_break_end = datetime.time(13, 30)
-
     # Initialize scheduling
     schedule = []
     current_day = 1
@@ -61,18 +56,6 @@ def generate_schedule(data, auditors, mandays, start_date):
     time_slot = start_time
     daily_hours_used = 0
     current_auditor_index = 0
-
-    # Add opening meeting
-    schedule.append({
-        "Date": current_date.strftime("%Y-%m-%d"),
-        "Day": current_day,
-        "Time": time_slot.strftime("%H:%M"),
-        "Activity": "Opening Meeting",
-        "Auditor": ", ".join(auditors),
-        "Allocated Hours": opening_meeting_duration
-    })
-    time_slot = (datetime.datetime.combine(current_date, time_slot) + datetime.timedelta(hours=opening_meeting_duration)).time()
-    daily_hours_used += opening_meeting_duration
 
     for index, row in data.iterrows():
         activity_name = row.iloc[0]  # Get activity name
@@ -84,22 +67,6 @@ def generate_schedule(data, auditors, mandays, start_date):
             current_date += datetime.timedelta(days=1)
             time_slot = start_time
             daily_hours_used = 0
-
-            # Add opening meeting for new day
-            schedule.append({
-                "Date": current_date.strftime("%Y-%m-%d"),
-                "Day": current_day,
-                "Time": time_slot.strftime("%H:%M"),
-                "Activity": "Opening Meeting",
-                "Auditor": ", ".join(auditors),
-                "Allocated Hours": opening_meeting_duration
-            })
-            time_slot = (datetime.datetime.combine(current_date, time_slot) + datetime.timedelta(hours=opening_meeting_duration)).time()
-            daily_hours_used += opening_meeting_duration
-
-        # Handle lunch break
-        if lunch_break_start <= time_slot < lunch_break_end:
-            time_slot = lunch_break_end
 
         # Assign auditor in round-robin fashion
         assigned_auditor = auditors[current_auditor_index % num_auditors]
@@ -119,21 +86,6 @@ def generate_schedule(data, auditors, mandays, start_date):
         # Move to next time slot
         time_slot = (datetime.datetime.combine(current_date, time_slot) + datetime.timedelta(hours=allocated_hours)).time()
         current_auditor_index += 1
-
-    # Add closing meeting at the end of each day
-    for i in range(1, current_day + 1):
-        last_activity_index = max(idx for idx, item in enumerate(schedule) if item["Day"] == i)
-        last_time = datetime.datetime.strptime(schedule[last_activity_index]["Time"], "%H:%M").time()
-        closing_time = (datetime.datetime.combine(current_date, last_time) + datetime.timedelta(hours=closing_meeting_duration)).time()
-
-        schedule.append({
-            "Date": schedule[last_activity_index]["Date"],
-            "Day": i,
-            "Time": closing_time.strftime("%H:%M"),
-            "Activity": "Closing Meeting",
-            "Auditor": ", ".join(auditors),
-            "Allocated Hours": closing_meeting_duration
-        })
 
     return pd.DataFrame(schedule)
 
@@ -175,6 +127,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
