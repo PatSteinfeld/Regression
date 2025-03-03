@@ -25,7 +25,7 @@ def generate_schedule(data, auditors, start_time, end_time):
         
         schedule.append({
             "Time": time_slot,
-            "Activity": row.iloc[0],  # First column selected by user
+            "Activity": row["Process/Activities per shift and/or site (when applicable)"],  # Updated column selection
             "Auditor": auditors[index % len(auditors)]
         })
         
@@ -45,26 +45,25 @@ def main():
         
         if selected_sheet:
             column_names = df_dict[selected_sheet].columns.tolist()
-            selected_columns = st.multiselect("Select Columns for Activities", column_names, default=[column_names[0]])
+            selected_columns = ["Process/Activities per shift and/or site (when applicable)"]  # Automatically select correct column
             
-            if selected_columns:
-                data = process_data(df_dict, selected_sheet, selected_columns)
+            data = process_data(df_dict, selected_sheet, selected_columns)
+            
+            st.write("### Extracted Data")
+            st.dataframe(data)
+            
+            auditors = st.text_area("Enter Auditors (comma-separated)").split(",")
+            start_time = st.time_input("Start Time", datetime.time(9, 0))
+            end_time = st.time_input("End Time", datetime.time(18, 0))
+            
+            if st.button("Generate Schedule"):
+                schedule = generate_schedule(data, auditors, start_time, end_time)
+                st.write("### Generated Schedule")
+                st.dataframe(schedule)
                 
-                st.write("### Extracted Data")
-                st.dataframe(data)
-                
-                auditors = st.text_area("Enter Auditors (comma-separated)").split(",")
-                start_time = st.time_input("Start Time", datetime.time(9, 0))
-                end_time = st.time_input("End Time", datetime.time(18, 0))
-                
-                if st.button("Generate Schedule"):
-                    schedule = generate_schedule(data, auditors, start_time, end_time)
-                    st.write("### Generated Schedule")
-                    st.dataframe(schedule)
-                    
-                    schedule.to_excel("Auditors_Schedule.xlsx", index=False)
-                    with open("Auditors_Schedule.xlsx", "rb") as file:
-                        st.download_button("Download Schedule", file, file_name="Auditors_Schedule.xlsx")
+                schedule.to_excel("Auditors_Schedule.xlsx", index=False)
+                with open("Auditors_Schedule.xlsx", "rb") as file:
+                    st.download_button("Download Schedule", file, file_name="Auditors_Schedule.xlsx")
 
 if __name__ == "__main__":
     main()
