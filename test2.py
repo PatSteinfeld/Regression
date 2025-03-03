@@ -5,8 +5,8 @@ from io import BytesIO
 
 def preprocess_excel(file):
     """
-    Loads the Excel file without a header and attempts to detect the header row
-    by looking for expected keywords.
+    Loads the Excel file without a header and dynamically detects the header row 
+    by checking for the presence of required fields.
     """
     # Load the entire file without headers
     df_raw = pd.read_excel(file, header=None)
@@ -14,25 +14,37 @@ def preprocess_excel(file):
     st.write("### Raw Data Preview")
     st.write(df_raw.head(15))
     
-    # Define keywords that should appear in the header row
-    expected_keywords = ["Site", "Activity", "Audit", "Date", "Man-Days"]
+    # Define the required keywords (all in lower-case)
+    required_keywords = ["site", "activity", "audit", "date", "man-days"]
+    
+    best_score = -1
     header_row_index = None
-
-    # Try to find a row that contains any of the expected keywords
-    for i, row in df_raw.iterrows():
-        # Convert row values to strings in lower-case
-        row_str = row.astype(str).str.lower()
-        if any(any(keyword.lower() in cell for cell in row_str if isinstance(cell, str)) 
-               for keyword in expected_keywords):
+    
+    # Look at the first 10 rows (or fewer if file is smaller) to find the best header row
+    for i in range(min(10, len(df_raw))):
+        row = df_raw.iloc[i]
+        score = 0
+        # For each cell, check if any of the required keywords is present
+        for cell in row:
+            if pd.notnull(cell):
+                cell_str = str(cell).lower()
+                # Count a match only once per cell
+                for keyword in required_keywords:
+                    if keyword in cell_str:
+                        score += 1
+                        break
+        st.write(f"Row {i} score: {score}")
+        if score > best_score:
+            best_score = score
             header_row_index = i
-            st.write(f"**Detected header row at index {i}:**")
-            st.write(row)
-            break
 
-    if header_row_index is None:
-        st.error("Could not automatically detect a header row. Please check the file format.")
+    if best_score == 0:
+        st.error("No header row containing required fields was detected. Please check the file format.")
         return None
 
+    st.write(f"**Dynamically detected header row at index {header_row_index} with score {best_score}:**")
+    st.write(df_raw.iloc[header_row_index])
+    
     # Reload the file using the detected header row
     df_table = pd.read_excel(file, header=header_row_index)
     st.write("### Data After Applying Detected Header")
@@ -46,8 +58,7 @@ def extract_audit_data(df):
     "Audit Type", "Proposed Audit Date", "Man-Days", "Site", "Activity".
     Core activities are indicated by a '*' in the Activity.
     """
-    # Optionally, rename columns if they don't exactly match
-    # For example, you might want to standardize column names:
+    # Optionally, rename columns if they don't exactly match.
     expected_columns = {
         "Audit programme": "Audit Type",
         "Proposed Audit Date": "Proposed Audit Date",
@@ -55,7 +66,6 @@ def extract_audit_data(df):
         "Site": "Site",
         "Activity": "Activity"
     }
-    # Check if any of the expected columns are missing and try to rename if possible
     for col in expected_columns:
         if col in df.columns:
             df = df.rename(columns={col: expected_columns[col]})
@@ -202,6 +212,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
