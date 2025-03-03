@@ -8,26 +8,31 @@ def load_excel(file):
     df_dict = pd.read_excel(file, sheet_name=None, header=None)  # Read without headers
     return df_dict
 
-def process_data(df):
-    """Extracts data after 'Process/Activities per shift and/or site (when applicable)'."""
-    sheet_name = "Sheet1"  # Change if needed
-    if sheet_name in df:
-        df_sheet = df[sheet_name]
-        
-        # Locate the row containing the keyword
-        keyword = "Process/Activities per shift and/or site (when applicable)"
-        row_idx = df_sheet[df_sheet.iloc[:, 0].astype(str).str.contains(keyword, na=False)].index
+def process_data(df_dict):
+    """Extracts activities after 'Process/Activities per shift and/or site (when applicable)'."""
+    sheet_name = list(df_dict.keys())[0]  # Auto-detect first sheet
+    df = df_dict[sheet_name]
+    
+    st.write(f"### 🔍 Debug: Sheet Name: {sheet_name}")  # Print sheet name
+    st.write("### 🔍 Debug: First 10 rows of the sheet")
+    st.dataframe(df.head(10))  # Show a preview
 
-        if not row_idx.empty:
-            start_row = row_idx[0] + 1  # Get the row below the keyword
-            planned_audits = df_sheet.iloc[start_row:].dropna(how="all")  # Drop empty rows
-            planned_audits.columns = ["Activity"] + [f"Col_{i}" for i in range(1, len(planned_audits.columns))]
-            return planned_audits[["Activity"]].reset_index(drop=True)  # Keep only 'Activity' column
-        else:
-            st.error(f"Keyword '{keyword}' not found in the uploaded file.")
-            return None
+    # Locate the row containing the keyword
+    keyword = "Process/Activities per shift and/or site (when applicable)"
+    row_idx = df[df.iloc[:, 0].astype(str).str.contains(keyword, na=False)].index
+
+    if not row_idx.empty:
+        start_row = row_idx[0] + 1  # Get the row below the keyword
+        planned_audits = df.iloc[start_row:].dropna(how="all")  # Drop empty rows
+        
+        # Debug: Show extracted rows
+        st.write("### 🔍 Debug: Extracted Activities")
+        st.dataframe(planned_audits.head(10))  
+
+        planned_audits.columns = ["Activity"] + [f"Col_{i}" for i in range(1, len(planned_audits.columns))]
+        return planned_audits[["Activity"]].reset_index(drop=True)  # Keep only 'Activity' column
     else:
-        st.error(f"'{sheet_name}' not found in the uploaded file.")
+        st.error(f"❌ Keyword '{keyword}' not found in the uploaded file.")
         return None
 
 def generate_schedule(data, auditors, start_time, end_time):
@@ -96,6 +101,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
