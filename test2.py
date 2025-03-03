@@ -6,9 +6,16 @@ def load_excel(file):
     df = pd.read_excel(file, sheet_name=None)
     return df
 
-def process_data(df, selected_sheet, selected_columns):
-    # Extract relevant data based on user selection
-    planned_audits = df[selected_sheet][selected_columns]
+def process_data(df, selected_sheet):
+    # Standardize column names to avoid KeyError
+    df[selected_sheet].columns = df[selected_sheet].columns.str.strip().str.lower()
+    selected_column = "process/activities per shift and/or site (when applicable)".lower()
+    
+    if selected_column in df[selected_sheet].columns:
+        planned_audits = df[selected_sheet][selected_column]
+    else:
+        planned_audits = pd.Series([])  # Empty series if column not found
+    
     return planned_audits
 
 def generate_schedule(data, auditors, start_time, end_time):
@@ -16,7 +23,7 @@ def generate_schedule(data, auditors, start_time, end_time):
     time_slot = start_time
     lunch_break = datetime.time(13, 0)
     
-    for index, row in data.iterrows():
+    for index, activity in data.items():
         if time_slot >= end_time:
             break  # Stop if end time is reached
         
@@ -25,7 +32,7 @@ def generate_schedule(data, auditors, start_time, end_time):
         
         schedule.append({
             "Time": time_slot,
-            "Activity": row["Process/Activities per shift and/or site (when applicable)"],  # Updated column selection
+            "Activity": activity,  # Updated column selection
             "Auditor": auditors[index % len(auditors)]
         })
         
@@ -44,10 +51,7 @@ def main():
         selected_sheet = st.selectbox("Select Sheet", sheet_names)
         
         if selected_sheet:
-            column_names = df_dict[selected_sheet].columns.tolist()
-            selected_columns = ["Process/Activities per shift and/or site (when applicable)"]  # Automatically select correct column
-            
-            data = process_data(df_dict, selected_sheet, selected_columns)
+            data = process_data(df_dict, selected_sheet)
             
             st.write("### Extracted Data")
             st.dataframe(data)
@@ -67,5 +71,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
 
