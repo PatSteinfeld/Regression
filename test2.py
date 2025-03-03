@@ -25,7 +25,7 @@ def generate_schedule(data, auditors, start_time, end_time):
         
         schedule.append({
             "Time": time_slot,
-            "Activity": row["ACTIVITY"],
+            "Activity": row["Process/Activities per shift and/or site (when applicable)"],
             "Auditor": auditors[index % len(auditors)]
         })
         
