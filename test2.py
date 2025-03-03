@@ -1,21 +1,39 @@
 import streamlit as st
 import pandas as pd
 import datetime
+import re
 
 def load_excel(file):
     df = pd.read_excel(file, sheet_name=None)
     return df
 
-def process_data(df, selected_sheet):
-    # Standardize column names to avoid KeyError
-    df[selected_sheet].columns = df[selected_sheet].columns.str.strip().str.lower()
-    selected_column = "process/activities per shift and/or site (when applicable)".lower()
+def find_matching_column(columns, target):
+    """Find a column that matches the target name case-insensitively and ignores spaces."""
+    target_cleaned = re.sub(r'\s+', ' ', target.strip()).lower()  # Normalize target
     
-    if selected_column in df[selected_sheet].columns:
-        # Extract only the required column and drop NaN values
-        planned_audits = df[selected_sheet][[selected_column]].dropna().reset_index(drop=True)
+    for col in columns:
+        col_cleaned = re.sub(r'\s+', ' ', col.strip()).lower()  # Normalize column
+        if target_cleaned in col_cleaned:  # Partial match
+            return col  # Return actual column name
+    
+    return None  # No match found
+
+def process_data(df, selected_sheet):
+    df_sheet = df[selected_sheet]
+    
+    # Get all column names
+    columns = list(df_sheet.columns)
+    st.write("### Available Columns in Sheet")
+    st.write(columns)  # Show columns for debugging
+    
+    # Find matching column
+    target_column = "Process/Activities per shift and/or site (when applicable)"
+    matched_column = find_matching_column(columns, target_column)
+    
+    if matched_column:
+        planned_audits = df_sheet[[matched_column]].dropna().reset_index(drop=True)
     else:
-        st.error(f"Column '{selected_column}' not found in the selected sheet.")
+        st.error(f"Column similar to '{target_column}' not found in the selected sheet.")
         planned_audits = pd.DataFrame()  # Return empty DataFrame if column is missing
     
     return planned_audits
@@ -34,7 +52,7 @@ def generate_schedule(data, auditors, start_time, end_time):
         
         schedule.append({
             "Time": time_slot,
-            "Activity": row.iloc[0],  # Extracting activity value from the correct column
+            "Activity": row.iloc[0],  # Extract activity from the first column
             "Auditor": auditors[index % len(auditors)]
         })
         
