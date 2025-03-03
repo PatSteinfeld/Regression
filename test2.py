@@ -4,20 +4,22 @@ from datetime import datetime, timedelta
 
 def get_audit_options(file):
     df = pd.read_excel(file, sheet_name=0)
-    audit_types = df['Audit Type'].dropna().unique().tolist()
-    sites = df['Site'].dropna().unique().tolist()
+    df.columns = df.columns.str.strip()  # Remove extra spaces from column names
+    audit_types = df[df.columns[0]].dropna().unique().tolist()
+    sites = df[df.columns[1]].dropna().unique().tolist()
     return audit_types, sites
 
 def generate_schedule(file, auditors, coded_auditors, audit, site, date):
     df = pd.read_excel(file, sheet_name=0)
-    activities = df[(df['Audit Type'] == audit) & (df['Site'] == site)]
+    df.columns = df.columns.str.strip()
+    activities = df[(df[df.columns[0]] == audit) & (df[df.columns[1]] == site)]
     
     if activities.empty:
         return pd.DataFrame([['No matching records found']], columns=['Error'])
     
-    mandays = activities['No of Mandays'].values[0]
+    mandays = activities.iloc[0, 2]  # Assuming 'No of Mandays' is the third column
     total_hours = mandays * 8
-    selected_activities = [col for col in activities.columns if activities.iloc[0][col] == '*']
+    selected_activities = [col for col in activities.columns[3:] if activities.iloc[0][col] == '*']
     num_activities = len(selected_activities)
     hours_per_activity = total_hours // num_activities if num_activities else 0
     
@@ -76,3 +78,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
