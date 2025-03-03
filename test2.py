@@ -3,52 +3,34 @@ import pandas as pd
 import datetime
 from io import BytesIO
 
-def preprocess_excel(file):
+def manual_select_header(file):
     """
-    Loads the Excel file without a header and dynamically detects the header row 
-    by checking for the presence of required fields.
+    Loads the Excel file without headers and allows the user to manually select 
+    which row should be used as the header.
     """
     # Load the entire file without headers
     df_raw = pd.read_excel(file, header=None)
     
     st.write("### Raw Data Preview")
-    st.write(df_raw.head(15))
+    st.dataframe(df_raw.head(20))
     
-    # Define the required keywords (all in lower-case)
-    required_keywords = ["site", "activity", "audit", "date", "man-days"]
+    # Allow the user to select the header row index.
+    header_index = st.number_input(
+        "Select the header row index (0-indexed)", 
+        min_value=0, 
+        max_value=len(df_raw)-1, 
+        value=0, 
+        step=1
+    )
     
-    best_score = -1
-    header_row_index = None
+    st.write("### Selected Header Row Preview")
+    st.write(df_raw.iloc[header_index])
     
-    # Look at the first 10 rows (or fewer if file is smaller) to find the best header row
-    for i in range(min(10, len(df_raw))):
-        row = df_raw.iloc[i]
-        score = 0
-        # For each cell, check if any of the required keywords is present
-        for cell in row:
-            if pd.notnull(cell):
-                cell_str = str(cell).lower()
-                # Count a match only once per cell
-                for keyword in required_keywords:
-                    if keyword in cell_str:
-                        score += 1
-                        break
-        st.write(f"Row {i} score: {score}")
-        if score > best_score:
-            best_score = score
-            header_row_index = i
-
-    if best_score == 0:
-        st.error("No header row containing required fields was detected. Please check the file format.")
-        return None
-
-    st.write(f"**Dynamically detected header row at index {header_row_index} with score {best_score}:**")
-    st.write(df_raw.iloc[header_row_index])
+    # Reload the file using the user-selected header row.
+    df_table = pd.read_excel(file, header=header_index)
+    st.write("### Data After Applying Selected Header")
+    st.dataframe(df_table.head(20))
     
-    # Reload the file using the detected header row
-    df_table = pd.read_excel(file, header=header_row_index)
-    st.write("### Data After Applying Detected Header")
-    st.write(df_table.head(10))
     return df_table
 
 def extract_audit_data(df):
@@ -58,7 +40,7 @@ def extract_audit_data(df):
     "Audit Type", "Proposed Audit Date", "Man-Days", "Site", "Activity".
     Core activities are indicated by a '*' in the Activity.
     """
-    # Optionally, rename columns if they don't exactly match.
+    # Optionally, rename columns if they don't exactly match the expected names.
     expected_columns = {
         "Audit programme": "Audit Type",
         "Proposed Audit Date": "Proposed Audit Date",
@@ -70,12 +52,12 @@ def extract_audit_data(df):
         if col in df.columns:
             df = df.rename(columns={col: expected_columns[col]})
     
-    # Extract audit types from "Audit Type" column if present
+    # Extract audit types from "Audit Type" column if present.
     audit_types = df["Audit Type"].dropna().unique().tolist() if "Audit Type" in df.columns else []
     proposed_audit_date = df["Proposed Audit Date"].iloc[0] if "Proposed Audit Date" in df.columns else None
     man_days = df["Man-Days"].iloc[0] if "Man-Days" in df.columns else 1  # default to 1 if missing
     
-    # Build a dictionary mapping each site to its list of activities
+    # Build a dictionary mapping each site to its list of activities.
     sites = {}
     if "Site" in df.columns and "Activity" in df.columns:
         for _, row in df.iterrows():
@@ -107,12 +89,12 @@ def main():
     uploaded_file = st.file_uploader("Upload Audit Plan (Excel)", type=["xlsx"])
     
     if uploaded_file:
-        # Preprocess the file to get a structured DataFrame
-        df = preprocess_excel(uploaded_file)
+        # Let the user manually select the header from the raw data.
+        df = manual_select_header(uploaded_file)
         if df is None:
             return
         
-        # Extract audit data from the processed DataFrame
+        # Extract audit data from the processed DataFrame.
         extracted_data = extract_audit_data(df)
         
         st.write("### Extracted Data Overview")
@@ -180,7 +162,7 @@ def main():
                 for act in selected_activities:
                     is_core = activity_details.get(act, False)
                     if is_core:
-                        # Only allow selection from coded auditors for core activities
+                        # Only allow selection from coded auditors for core activities.
                         options = [aud for aud in auditors if aud in coded_auditors]
                         if not options:
                             st.error(f"No coded auditors available for the core activity '{act}'.")
@@ -204,7 +186,7 @@ def main():
                 st.write("### Generated Audit Plan")
                 st.dataframe(schedule_df)
                 
-                # Save the schedule to an Excel file using an in-memory buffer
+                # Save the schedule to an Excel file using an in-memory buffer.
                 output = BytesIO()
                 schedule_df.to_excel(output, index=False)
                 output.seek(0)
