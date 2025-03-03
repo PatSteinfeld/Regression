@@ -6,9 +6,9 @@ def load_excel(file):
     df = pd.read_excel(file, sheet_name=None)
     return df
 
-def process_data(df):
-    # Extract relevant data
-    planned_audits = df["Sheet1"].iloc[:, :10]  # Adjust as per sheet structure
+def process_data(df, selected_sheet, selected_columns):
+    # Extract relevant data based on user selection
+    planned_audits = df[selected_sheet][selected_columns]
     return planned_audits
 
 def generate_schedule(data, auditors, start_time, end_time):
@@ -25,7 +25,7 @@ def generate_schedule(data, auditors, start_time, end_time):
         
         schedule.append({
             "Time": time_slot,
-            "Activity": row["ACTIVITY"],
+            "Activity": row.iloc[0],  # First column selected by user
             "Auditor": auditors[index % len(auditors)]
         })
         
@@ -40,24 +40,33 @@ def main():
     
     if uploaded_file:
         df_dict = load_excel(uploaded_file)
-        data = process_data(df_dict)
+        sheet_names = list(df_dict.keys())
+        selected_sheet = st.selectbox("Select Sheet", sheet_names)
         
-        st.write("### Extracted Data")
-        st.dataframe(data)
-        
-        auditors = st.text_area("Enter Auditors (comma-separated)").split(",")
-        start_time = st.time_input("Start Time", datetime.time(9, 0))
-        end_time = st.time_input("End Time", datetime.time(18, 0))
-        
-        if st.button("Generate Schedule"):
-            schedule = generate_schedule(data, auditors, start_time, end_time)
-            st.write("### Generated Schedule")
-            st.dataframe(schedule)
+        if selected_sheet:
+            column_names = df_dict[selected_sheet].columns.tolist()
+            selected_columns = st.multiselect("Select Columns for Activities", column_names, default=[column_names[0]])
             
-            schedule.to_excel("Auditors_Schedule.xlsx", index=False)
-            with open("Auditors_Schedule.xlsx", "rb") as file:
-                st.download_button("Download Schedule", file, file_name="Auditors_Schedule.xlsx")
+            if selected_columns:
+                data = process_data(df_dict, selected_sheet, selected_columns)
+                
+                st.write("### Extracted Data")
+                st.dataframe(data)
+                
+                auditors = st.text_area("Enter Auditors (comma-separated)").split(",")
+                start_time = st.time_input("Start Time", datetime.time(9, 0))
+                end_time = st.time_input("End Time", datetime.time(18, 0))
+                
+                if st.button("Generate Schedule"):
+                    schedule = generate_schedule(data, auditors, start_time, end_time)
+                    st.write("### Generated Schedule")
+                    st.dataframe(schedule)
+                    
+                    schedule.to_excel("Auditors_Schedule.xlsx", index=False)
+                    with open("Auditors_Schedule.xlsx", "rb") as file:
+                        st.download_button("Download Schedule", file, file_name="Auditors_Schedule.xlsx")
 
 if __name__ == "__main__":
     main()
+
 
