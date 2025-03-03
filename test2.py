@@ -14,11 +14,15 @@ def load_excel(file):
     return df
 
 def process_data(df):
-    """Extract relevant activities under 'Process/Activities per shift and/or site'."""
+    """Extract number of mandays and relevant activities."""
     first_sheet = list(df.keys())[0]
     data = df[first_sheet]
 
-    # Find the row index where 'Process/Activities per shift and/or site' appears
+    # Extract number of mandays
+    mandays_row = data[data.iloc[:, 0].astype(str).str.contains("Number of man days", na=False)]
+    mandays = int(mandays_row.iloc[0, 1]) if not mandays_row.empty else 1  # Default to 1 if not found
+
+    # Find the row index where "Process/Activities per shift and/or site" appears
     activity_start_idx = data[data.iloc[:, 0].astype(str).str.contains("Process/Activities per shift", na=False)].index
 
     if not activity_start_idx.empty:
@@ -27,21 +31,28 @@ def process_data(df):
     else:
         filtered_data = pd.DataFrame()  # Return empty if no match found
 
-    return filtered_data
+    return mandays, filtered_data
 
-def generate_schedule(data, auditors, start_time, end_time):
-    """Generate a schedule ensuring constraints like lunch break and end time."""
+def generate_schedule(data, auditors, start_time, end_time, mandays):
+    """Generate a schedule ensuring equal distribution of mandays."""
+    if data.empty:
+        return pd.DataFrame()
+
+    total_hours = mandays * 8  # Convert mandays to total available hours
+    num_activities = len(data)
+    hours_per_activity = total_hours / num_activities  # Distribute hours equally
+
     schedule = []
     time_slot = start_time
     lunch_start = datetime.time(13, 0)
     lunch_end = datetime.time(13, 30)
     
     num_auditors = len(auditors)
-    
+
     for index, row in data.iterrows():
         if time_slot >= end_time:
             break  # Stop if end time is reached
-        
+
         # Handle lunch break
         if lunch_start <= time_slot < lunch_end:
             time_slot = lunch_end  # Resume after lunch
@@ -52,11 +63,12 @@ def generate_schedule(data, auditors, start_time, end_time):
         schedule.append({
             "Time": time_slot,
             "Activity": row.iloc[0],  # Use the first column for activity names
-            "Auditor": auditors[index % num_auditors]  # Assign auditor in round-robin
+            "Auditor": auditors[index % num_auditors],  # Assign auditor in round-robin
+            "Allocated Hours": round(hours_per_activity, 2)  # Show allocated hours
         })
 
         # Move to the next slot
-        new_time = (datetime.datetime.combine(datetime.date.today(), time_slot) + datetime.timedelta(hours=1)).time()
+        new_time = (datetime.datetime.combine(datetime.date.today(), time_slot) + datetime.timedelta(hours=hours_per_activity)).time()
         
         # Ensure new_time doesn't exceed end time
         if new_time < end_time:
@@ -73,13 +85,13 @@ def main():
 
     if uploaded_file:
         df_dict = load_excel(uploaded_file)
-        data = process_data(df_dict)
+        mandays, data = process_data(df_dict)
 
         if data.empty:
             st.error("Could not find 'Process/Activities per shift and/or site' section. Please check the file format.")
             return
 
-        st.write("### Extracted Activities")
+        st.write(f"### Extracted Activities (Mandays: {mandays})")
         st.dataframe(data)
 
         auditors = st.text_area("Enter Auditors (comma-separated)").split(",")
@@ -91,7 +103,7 @@ def main():
                 st.warning("Please enter at least one auditor.")
                 return
 
-            schedule = generate_schedule(data, auditors, start_time, end_time)
+            schedule = generate_schedule(data, auditors, start_time, end_time, mandays)
             st.write("### Generated Schedule")
             st.dataframe(schedule)
 
@@ -105,6 +117,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
