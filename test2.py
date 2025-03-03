@@ -47,26 +47,36 @@ def generate_schedule(data, auditors, mandays, start_date):
     # Calculate available working hours per day considering all auditors
     total_hours_per_day = num_auditors * hours_per_day_per_auditor
 
+    # Distribute hours equally among activities
+    activities_count = len(data)
+    allocated_hours_per_activity = total_hours_needed / activities_count
+
     # Initialize scheduling
     schedule = []
     current_day = 1
     current_date = start_date
     start_time = datetime.time(9, 0)
+    lunch_break_start = datetime.time(13, 0)
+    lunch_break_end = datetime.time(13, 30)
     end_time = datetime.time(18, 0)
+
     time_slot = start_time
     daily_hours_used = 0
     current_auditor_index = 0
 
     for index, row in data.iterrows():
         activity_name = row.iloc[0]  # Get activity name
-        allocated_hours = min(8, total_hours_needed / len(data))  # Distribute hours
 
-        if time_slot >= end_time or daily_hours_used + allocated_hours > hours_per_day_per_auditor:
+        if time_slot >= end_time or daily_hours_used + allocated_hours_per_activity > hours_per_day_per_auditor:
             # Move to next day
             current_day += 1
             current_date += datetime.timedelta(days=1)
             time_slot = start_time
             daily_hours_used = 0
+
+        # Adjust for lunch break
+        if time_slot >= lunch_break_start and time_slot < lunch_break_end:
+            time_slot = lunch_break_end
 
         # Assign auditor in round-robin fashion
         assigned_auditor = auditors[current_auditor_index % num_auditors]
@@ -76,15 +86,14 @@ def generate_schedule(data, auditors, mandays, start_date):
             "Time": time_slot.strftime("%H:%M"),
             "Activity": activity_name,
             "Auditor": assigned_auditor,
-            "Allocated Hours": allocated_hours
+            "Allocated Hours": allocated_hours_per_activity
         })
 
-        # Update total hours left
-        total_hours_needed -= allocated_hours
-        daily_hours_used += allocated_hours
+        # Update daily hours used
+        daily_hours_used += allocated_hours_per_activity
 
         # Move to next time slot
-        time_slot = (datetime.datetime.combine(current_date, time_slot) + datetime.timedelta(hours=allocated_hours)).time()
+        time_slot = (datetime.datetime.combine(current_date, time_slot) + datetime.timedelta(hours=allocated_hours_per_activity)).time()
         current_auditor_index += 1
 
     return pd.DataFrame(schedule)
@@ -127,6 +136,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
