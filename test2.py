@@ -6,16 +6,9 @@ def load_excel(file):
     df = pd.read_excel(file, sheet_name=None)
     return df
 
-def process_data(df, selected_sheet):
-    # Standardize column names to avoid KeyError
-    df[selected_sheet].columns = df[selected_sheet].columns.str.strip().str.lower()
-    selected_column = "process/activities per shift and/or site (when applicable)".lower()
-    
-    if selected_column in df[selected_sheet].columns:
-        planned_audits = df[selected_sheet][selected_column]
-    else:
-        planned_audits = pd.Series([])  # Empty series if column not found
-    
+def process_data(df):
+    # Extract relevant data
+    planned_audits = df["Sheet1"].iloc[:, :10]  # Adjust as per sheet structure
     return planned_audits
 
 def generate_schedule(data, auditors, start_time, end_time):
@@ -23,7 +16,7 @@ def generate_schedule(data, auditors, start_time, end_time):
     time_slot = start_time
     lunch_break = datetime.time(13, 0)
     
-    for index, activity in data.items():
+    for index, row in data.iterrows():
         if time_slot >= end_time:
             break  # Stop if end time is reached
         
@@ -32,7 +25,7 @@ def generate_schedule(data, auditors, start_time, end_time):
         
         schedule.append({
             "Time": time_slot,
-            "Activity": activity,  # Updated column selection
+            "Activity": row["ACTIVITY"],
             "Auditor": auditors[index % len(auditors)]
         })
         
@@ -47,27 +40,23 @@ def main():
     
     if uploaded_file:
         df_dict = load_excel(uploaded_file)
-        sheet_names = list(df_dict.keys())
-        selected_sheet = st.selectbox("Select Sheet", sheet_names)
+        data = process_data(df_dict)
         
-        if selected_sheet:
-            data = process_data(df_dict, selected_sheet)
+        st.write("### Extracted Data")
+        st.dataframe(data)
+        
+        auditors = st.text_area("Enter Auditors (comma-separated)").split(",")
+        start_time = st.time_input("Start Time", datetime.time(9, 0))
+        end_time = st.time_input("End Time", datetime.time(18, 0))
+        
+        if st.button("Generate Schedule"):
+            schedule = generate_schedule(data, auditors, start_time, end_time)
+            st.write("### Generated Schedule")
+            st.dataframe(schedule)
             
-            st.write("### Extracted Data")
-            st.dataframe(data)
-            
-            auditors = st.text_area("Enter Auditors (comma-separated)").split(",")
-            start_time = st.time_input("Start Time", datetime.time(9, 0))
-            end_time = st.time_input("End Time", datetime.time(18, 0))
-            
-            if st.button("Generate Schedule"):
-                schedule = generate_schedule(data, auditors, start_time, end_time)
-                st.write("### Generated Schedule")
-                st.dataframe(schedule)
-                
-                schedule.to_excel("Auditors_Schedule.xlsx", index=False)
-                with open("Auditors_Schedule.xlsx", "rb") as file:
-                    st.download_button("Download Schedule", file, file_name="Auditors_Schedule.xlsx")
+            schedule.to_excel("Auditors_Schedule.xlsx", index=False)
+            with open("Auditors_Schedule.xlsx", "rb") as file:
+                st.download_button("Download Schedule", file, file_name="Auditors_Schedule.xlsx")
 
 if __name__ == "__main__":
     main()
