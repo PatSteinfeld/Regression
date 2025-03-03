@@ -1,141 +1,86 @@
 import streamlit as st
 import pandas as pd
 import datetime
-from io import BytesIO
 
 def load_excel(file):
-    """Load Excel file, handling multi-row headers."""
-    df = pd.read_excel(file, sheet_name=None, header=[0, 1])  # Read first two rows as headers
-
-    # Flatten multi-index columns
-    for sheet in df:
-        df[sheet].columns = [' '.join(map(str, col)).strip() for col in df[sheet].columns]
-
+    """Load Excel file and preprocess multi-header columns."""
+    df = pd.read_excel(file, header=[0, 1])  # Read first two rows as headers
+    df.columns = [' '.join(map(str, col)).strip() for col in df.columns]  # Flatten headers
     return df
 
-def process_data(df):
-    """Extract number of mandays and relevant activities."""
-    first_sheet = list(df.keys())[0]
-    data = df[first_sheet]
+def extract_relevant_data(df):
+    """Extract required scheduling data while excluding 'None' values."""
+    start_index = df[df.iloc[:, 0] == "Process/Activities per shift and/or site (when applicable)"].index[0] + 1
+    data = df.iloc[start_index:].dropna(subset=[df.columns[0]])  # Drop rows where first column is None
+    return data
 
-    # Extract number of mandays
-    mandays_row = data[data.iloc[:, 0].astype(str).str.contains("Number of man days", na=False)]
-    mandays = int(mandays_row.iloc[0, 1]) if not mandays_row.empty else 1  # Default to 1 if not found
-
-    # Find the row index where "Process/Activities per shift and/or site" appears
-    activity_start_idx = data[data.iloc[:, 0].astype(str).str.contains("Process/Activities per shift", na=False)].index
-
-    if not activity_start_idx.empty:
-        start_index = activity_start_idx[0] + 1  # Activities start from the next row
-        filtered_data = data.iloc[start_index:].reset_index(drop=True)  # Extract relevant activities
-        filtered_data = filtered_data[filtered_data.iloc[:, 0].notna()]  # Remove "None" activities
-    else:
-        filtered_data = pd.DataFrame()  # Return empty if no match found
-
-    return mandays, filtered_data
-
-def generate_schedule(data, auditors, mandays, start_date):
-    """Generate a schedule ensuring 8 hours per auditor per day and shifting excess to the next day."""
-    if data.empty:
-        return pd.DataFrame()
-
-    total_mandays_needed = mandays  # Total required mandays
-    hours_per_day_per_auditor = 8  # Each auditor works 8 hours per day
-    total_hours_needed = total_mandays_needed * hours_per_day_per_auditor
-    num_auditors = len(auditors)
-
-    # Calculate available working hours per day considering all auditors
-    total_hours_per_day = num_auditors * hours_per_day_per_auditor
-
-    # Distribute hours equally among activities
-    activities_count = len(data)
-    allocated_hours_per_activity = total_hours_needed / activities_count
-
-    # Initialize scheduling
+def generate_schedule(data, auditors, mandays, start_date, start_time, end_time):
+    """Generate the audit schedule while distributing mandays and skipping lunch break."""
     schedule = []
-    current_day = 1
-    current_date = start_date
-    start_time = datetime.time(9, 0)
-    lunch_break_start = datetime.time(13, 0)
-    lunch_break_end = datetime.time(13, 30)
-    end_time = datetime.time(18, 0)
+    total_hours = mandays * 8  # Total hours available for scheduling
+    hours_per_activity = total_hours / len(data)  # Distribute total mandays equally
+    lunch_break = datetime.time(13, 0)
+    lunch_duration = datetime.timedelta(minutes=30)
 
-    time_slot = start_time
-    daily_hours_used = 0
-    current_auditor_index = 0
+    current_time = start_time
+    current_date = start_date
 
     for index, row in data.iterrows():
-        activity_name = row.iloc[0]  # Get activity name
+        if total_hours <= 0:
+            break  # Stop scheduling when all mandays are used
 
-        if time_slot >= end_time or daily_hours_used + allocated_hours_per_activity > hours_per_day_per_auditor:
-            # Move to next day
-            current_day += 1
+        if current_time >= end_time:  # Shift to next day if end time is reached
             current_date += datetime.timedelta(days=1)
-            time_slot = start_time
-            daily_hours_used = 0
+            current_time = start_time
 
-        # Adjust for lunch break
-        if time_slot >= lunch_break_start and time_slot < lunch_break_end:
-            time_slot = lunch_break_end
+        if current_time == lunch_break:  # Skip lunch break
+            current_time = (datetime.datetime.combine(datetime.date.today(), current_time) + lunch_duration).time()
 
-        # Assign auditor in round-robin fashion
-        assigned_auditor = auditors[current_auditor_index % num_auditors]
+        end_activity_time = (datetime.datetime.combine(datetime.date.today(), current_time) + datetime.timedelta(hours=hours_per_activity)).time()
+
         schedule.append({
-            "Date": current_date.strftime("%Y-%m-%d"),
-            "Day": current_day,
-            "Time": time_slot.strftime("%H:%M"),
-            "Activity": activity_name,
-            "Auditor": assigned_auditor,
-            "Allocated Hours": allocated_hours_per_activity
+            "Date": current_date,
+            "Start Time": current_time,
+            "End Time": end_activity_time,
+            "Activity": row[df.columns[0]],
+            "Auditor": auditors[index % len(auditors)]
         })
 
-        # Update daily hours used
-        daily_hours_used += allocated_hours_per_activity
-
-        # Move to next time slot
-        time_slot = (datetime.datetime.combine(current_date, time_slot) + datetime.timedelta(hours=allocated_hours_per_activity)).time()
-        current_auditor_index += 1
+        current_time = end_activity_time
+        total_hours -= hours_per_activity  # Reduce available hours
 
     return pd.DataFrame(schedule)
 
 def main():
     st.title("Auditors Planning Schedule")
-
+    
     uploaded_file = st.file_uploader("Upload Audit Plan (Excel)", type=["xlsx"])
-
+    
     if uploaded_file:
-        df_dict = load_excel(uploaded_file)
-        mandays, data = process_data(df_dict)
-
-        if data.empty:
-            st.error("Could not find 'Process/Activities per shift and/or site' section. Please check the file format.")
-            return
-
-        st.write(f"### Extracted Activities (Mandays: {mandays})")
+        df = load_excel(uploaded_file)
+        data = extract_relevant_data(df)
+        
+        st.write("### Extracted Data")
         st.dataframe(data)
 
         auditors = st.text_area("Enter Auditors (comma-separated)").split(",")
-        start_date = st.date_input("Select Start Date", datetime.date.today())
+        mandays = st.number_input("Total Mandays", min_value=1, value=2)
+        start_date = st.date_input("Start Date", datetime.date.today())
+        start_time = st.time_input("Start Time", datetime.time(9, 0))
+        end_time = st.time_input("End Time", datetime.time(18, 0))
 
         if st.button("Generate Schedule"):
-            if not auditors or len(auditors[0]) == 0:
-                st.warning("Please enter at least one auditor.")
-                return
-
-            schedule = generate_schedule(data, auditors, mandays, start_date)
+            schedule = generate_schedule(data, auditors, mandays, start_date, start_time, end_time)
             st.write("### Generated Schedule")
             st.dataframe(schedule)
-
-            # Create Excel file in-memory
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                schedule.to_excel(writer, index=False, sheet_name="Schedule")
-            output.seek(0)
-
-            st.download_button("Download Schedule", output, file_name="Auditors_Schedule.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            
+            schedule.to_excel("Auditors_Schedule.xlsx", index=False)
+            with open("Auditors_Schedule.xlsx", "rb") as file:
+                st.download_button("Download Schedule", file, file_name="Auditors_Schedule.xlsx")
 
 if __name__ == "__main__":
     main()
+
 
 
 
