@@ -33,48 +33,101 @@ def process_data(df):
 
     return mandays, filtered_data
 
-def generate_schedule(data, auditors, start_time, end_time, mandays):
-    """Generate a schedule ensuring equal distribution of mandays."""
+def generate_schedule(data, auditors, mandays):
+    """Generate a schedule ensuring 8 hours per auditor per day and shifting excess to the next day."""
     if data.empty:
         return pd.DataFrame()
 
-    total_hours = mandays * 8  # Convert mandays to total available hours
-    num_activities = len(data)
-    hours_per_activity = total_hours / num_activities  # Distribute hours equally
-
-    schedule = []
-    time_slot = start_time
-    lunch_start = datetime.time(13, 0)
-    lunch_end = datetime.time(13, 30)
-    
+    total_mandays_needed = mandays  # Total required mandays
+    hours_per_day_per_auditor = 8  # Each auditor works 8 hours per day
+    total_hours_needed = total_mandays_needed * hours_per_day_per_auditor
     num_auditors = len(auditors)
 
+    # Calculate available working hours per day considering all auditors
+    total_hours_per_day = num_auditors * hours_per_day_per_auditor
+
+    # Ensure both auditors are present for the opening and closing meetings
+    opening_meeting_duration = 0.5  # 30 minutes
+    closing_meeting_duration = 0.5  # 30 minutes
+    lunch_break_start = datetime.time(13, 0)
+    lunch_break_end = datetime.time(13, 30)
+
+    # Initialize scheduling
+    schedule = []
+    current_day = 1
+    start_time = datetime.time(9, 0)
+    end_time = datetime.time(18, 0)
+    time_slot = start_time
+    daily_hours_used = 0
+    current_auditor_index = 0
+
+    # Add opening meeting
+    schedule.append({
+        "Day": current_day,
+        "Time": time_slot,
+        "Activity": "Opening Meeting",
+        "Auditor": ", ".join(auditors),
+        "Allocated Hours": opening_meeting_duration
+    })
+    time_slot = (datetime.datetime.combine(datetime.date.today(), time_slot) + datetime.timedelta(hours=opening_meeting_duration)).time()
+    daily_hours_used += opening_meeting_duration
+
     for index, row in data.iterrows():
-        if time_slot >= end_time:
-            break  # Stop if end time is reached
+        activity_name = row.iloc[0]  # Get activity name
+        allocated_hours = min(8, total_hours_needed / len(data))  # Distribute hours
+
+        if time_slot >= end_time or daily_hours_used + allocated_hours > hours_per_day_per_auditor:
+            # Move to next day
+            current_day += 1
+            time_slot = start_time
+            daily_hours_used = 0
+
+            # Add opening meeting for new day
+            schedule.append({
+                "Day": current_day,
+                "Time": time_slot,
+                "Activity": "Opening Meeting",
+                "Auditor": ", ".join(auditors),
+                "Allocated Hours": opening_meeting_duration
+            })
+            time_slot = (datetime.datetime.combine(datetime.date.today(), time_slot) + datetime.timedelta(hours=opening_meeting_duration)).time()
+            daily_hours_used += opening_meeting_duration
 
         # Handle lunch break
-        if lunch_start <= time_slot < lunch_end:
-            time_slot = lunch_end  # Resume after lunch
-        
-        if time_slot >= end_time:
-            break  # Stop if resuming exceeds end time
+        if lunch_break_start <= time_slot < lunch_break_end:
+            time_slot = lunch_break_end
 
+        # Assign auditor in round-robin fashion
+        assigned_auditor = auditors[current_auditor_index % num_auditors]
         schedule.append({
+            "Day": current_day,
             "Time": time_slot,
-            "Activity": row.iloc[0],  # Use the first column for activity names
-            "Auditor": auditors[index % num_auditors],  # Assign auditor in round-robin
-            "Allocated Hours": round(hours_per_activity, 2)  # Show allocated hours
+            "Activity": activity_name,
+            "Auditor": assigned_auditor,
+            "Allocated Hours": allocated_hours
         })
 
-        # Move to the next slot
-        new_time = (datetime.datetime.combine(datetime.date.today(), time_slot) + datetime.timedelta(hours=hours_per_activity)).time()
-        
-        # Ensure new_time doesn't exceed end time
-        if new_time < end_time:
-            time_slot = new_time
-        else:
-            break
+        # Update total hours left
+        total_hours_needed -= allocated_hours
+        daily_hours_used += allocated_hours
+
+        # Move to next time slot
+        time_slot = (datetime.datetime.combine(datetime.date.today(), time_slot) + datetime.timedelta(hours=allocated_hours)).time()
+        current_auditor_index += 1
+
+    # Add closing meeting at the end of each day
+    for i in range(1, current_day + 1):
+        last_activity_index = max(idx for idx, item in enumerate(schedule) if item["Day"] == i)
+        last_time = schedule[last_activity_index]["Time"]
+        closing_time = (datetime.datetime.combine(datetime.date.today(), last_time) + datetime.timedelta(hours=closing_meeting_duration)).time()
+
+        schedule.append({
+            "Day": i,
+            "Time": closing_time,
+            "Activity": "Closing Meeting",
+            "Auditor": ", ".join(auditors),
+            "Allocated Hours": closing_meeting_duration
+        })
 
     return pd.DataFrame(schedule)
 
@@ -95,15 +148,13 @@ def main():
         st.dataframe(data)
 
         auditors = st.text_area("Enter Auditors (comma-separated)").split(",")
-        start_time = st.time_input("Start Time", datetime.time(9, 0))
-        end_time = st.time_input("End Time", datetime.time(18, 0))
-
+        
         if st.button("Generate Schedule"):
             if not auditors or len(auditors[0]) == 0:
                 st.warning("Please enter at least one auditor.")
                 return
 
-            schedule = generate_schedule(data, auditors, start_time, end_time, mandays)
+            schedule = generate_schedule(data, auditors, mandays)
             st.write("### Generated Schedule")
             st.dataframe(schedule)
 
@@ -117,6 +168,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
