@@ -1,89 +1,75 @@
-import streamlit as st
 import pandas as pd
-import datetime
+import streamlit as st
 
-def load_excel(file):
-    df = pd.read_excel(file, sheet_name=None)
-    return df
+# Function to load and process the Excel file
+def load_audit_data(file):
+    df = pd.read_excel(file, sheet_name=None)  # Load all sheets
+    sheet_name = list(df.keys())[0]  # Assuming the first sheet contains PAP data
+    data = df[sheet_name]
+    
+    # Identify header row (assumption: headers are in first few rows)
+    header_row = data[data.iloc[:, 0].astype(str).str.contains('Audit Type', na=False)].index[0]
+    data.columns = data.iloc[header_row]
+    data = data[header_row + 1:].reset_index(drop=True)
+    
+    # Drop empty columns
+    data = data.dropna(axis=1, how='all')
+    data = data.dropna(how='all')
+    
+    return data
 
-def process_data(df, selected_sheet):
-    df_sheet = df[selected_sheet]
-    
-    # Display available columns for debugging
-    st.write("### Available Columns in the Selected Sheet:")
-    st.write(df_sheet.columns.tolist())  # Show column names for reference
-    
-    # Try to identify the correct column dynamically
-    possible_columns = ["PLANNED AUDITS", "ACTIVITY", "PROCESS/ACTIVITIES PER SHIFT AND/OR SITE (WHEN APPLICABLE)"]
-    
-    found_column = None
-    for col in df_sheet.columns:
-        clean_col = col.strip().upper()  # Normalize column names
-        if clean_col in [c.upper() for c in possible_columns]:
-            found_column = col
-            break
-    
-    if found_column:
-        st.success(f"Using column: {found_column}")
-        planned_audits = df_sheet[[found_column]].dropna().reset_index(drop=True)
-    else:
-        st.error("No matching column found. Please check your Excel sheet.")
-        planned_audits = pd.DataFrame()  # Return empty DataFrame if column is missing
-    
-    return planned_audits
-
-def generate_schedule(data, auditors, start_time, end_time):
-    schedule = []
-    time_slot = start_time
-    lunch_break = datetime.time(13, 0)
-    
-    for index, row in data.iterrows():
-        if time_slot >= end_time:
-            break  # Stop if end time is reached
-        
-        if time_slot == lunch_break:
-            time_slot = (datetime.datetime.combine(datetime.date.today(), time_slot) + datetime.timedelta(minutes=30)).time()
-        
-        schedule.append({
-            "Time": time_slot,
-            "Activity": row.iloc[0],  # Extract activity from the first column
-            "Auditor": auditors[index % len(auditors)]
-        })
-        
-        time_slot = (datetime.datetime.combine(datetime.date.today(), time_slot) + datetime.timedelta(hours=1)).time()
-    
-    return pd.DataFrame(schedule)
-
+# Streamlit UI
 def main():
-    st.title("Auditors Planning Schedule")
-    
-    uploaded_file = st.file_uploader("Upload Audit Plan (Excel)", type=["xlsx"])
+    st.title("Auditors' Planning Schedule")
+    uploaded_file = st.file_uploader("Upload PAP Excel file", type=["xlsx"])
     
     if uploaded_file:
-        df_dict = load_excel(uploaded_file)
-        sheet_names = list(df_dict.keys())
-        selected_sheet = st.selectbox("Select Sheet", sheet_names)
+        audit_data = load_audit_data(uploaded_file)
+        st.write("### Extracted Audit Data:")
+        st.dataframe(audit_data)
         
-        if selected_sheet:
-            data = process_data(df_dict, selected_sheet)
+        # Extract necessary columns (adjust based on actual column names in file)
+        audit_types = audit_data['Audit Type'].dropna().unique()
+        selected_audit = st.selectbox("Select Audit Type", audit_types)
+        
+        site_names = [col for col in audit_data.columns if "Site" in str(col)]
+        selected_site = st.selectbox("Select Site", site_names)
+        
+        # Filter activities marked with '*'
+        activities = audit_data[selected_site].dropna()
+        activities = activities[activities.str.contains('\*')]
+        activities = activities.index.tolist()
+        
+        st.write("### Activities to be Audited:")
+        selected_activities = st.multiselect("Select Activities", activities)
+        
+        # Calculate total audit time
+        man_days = audit_data.loc[audit_data['Audit Type'] == selected_audit, 'Number of Man-Days'].values
+        total_hours = (man_days[0] * 8) if len(man_days) > 0 else 0
+        
+        st.write(f"### Total Audit Time: {total_hours} hours")
+        
+        # Assign auditors
+        num_auditors = st.number_input("Number of Auditors", min_value=1, max_value=5, step=1)
+        auditors = [st.text_input(f"Auditor {i+1} Name") for i in range(num_auditors)]
+        coded_status = [st.checkbox(f"Coded Auditor {i+1}") for i in range(num_auditors)]
+        
+        # Display Final Schedule
+        if st.button("Generate Schedule"):
+            schedule_df = pd.DataFrame({
+                "Audit Name": [selected_audit] * len(selected_activities),
+                "Site": [selected_site] * len(selected_activities),
+                "Activity": selected_activities,
+                "Assigned Auditor": auditors[:len(selected_activities)],
+                "Coded Auditor": coded_status[:len(selected_activities)]
+            })
+            st.write("### Final Audit Schedule")
+            st.dataframe(schedule_df)
             
-            if not data.empty:
-                st.write("### Extracted Data")
-                st.dataframe(data)
-                
-                auditors = st.text_area("Enter Auditors (comma-separated)").split(",")
-                start_time = st.time_input("Start Time", datetime.time(9, 0))
-                end_time = st.time_input("End Time", datetime.time(18, 0))
-                
-                if st.button("Generate Schedule"):
-                    schedule = generate_schedule(data, auditors, start_time, end_time)
-                    st.write("### Generated Schedule")
-                    st.dataframe(schedule)
-                    
-                    schedule.to_excel("Auditors_Schedule.xlsx", index=False)
-                    with open("Auditors_Schedule.xlsx", "rb") as file:
-                        st.download_button("Download Schedule", file, file_name="Auditors_Schedule.xlsx")
-
+            # Option to download schedule
+            csv = schedule_df.to_csv(index=False).encode('utf-8')
+            st.download_button("Download Schedule as CSV", data=csv, file_name="audit_schedule.csv", mime='text/csv')
+            
 if __name__ == "__main__":
     main()
 
