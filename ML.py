@@ -2,9 +2,10 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.linear_model import ElasticNet
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error
 
 # Streamlit app title
 st.title("Startup Profit Prediction App")
@@ -38,12 +39,20 @@ if uploaded_file:
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    # Train ElasticNet model
-    model = ElasticNet()
-    model.fit(X_train_scaled, y_train)
+    # Hyperparameter tuning for ElasticNet
+    param_grid = {
+        'alpha': [0.1, 0.5, 1, 5, 10],
+        'l1_ratio': [0.1, 0.5, 0.7, 0.9, 1.0]
+    }
+    grid_search = GridSearchCV(ElasticNet(), param_grid, cv=5, scoring='neg_mean_squared_error')
+    grid_search.fit(X_train_scaled, y_train)
+
+    # Best model
+    best_model = grid_search.best_estimator_
+    best_model.fit(X_train_scaled, y_train)
 
     # Predict on uploaded dataset
-    df['Predicted Profit'] = model.predict(scaler.transform(X))
+    df['Predicted Profit'] = best_model.predict(scaler.transform(X))
     st.write("### Predicted Values for Uploaded Dataset")
     st.write(df[['R&D Spend', 'Administration', 'Marketing Spend', 'Profit', 'Predicted Profit']])
 
@@ -67,9 +76,7 @@ if uploaded_file:
     if st.button("Predict Profit"):
         input_data = np.array(input_data).reshape(1, -1)
         input_scaled = scaler.transform(input_data)
-        prediction = model.predict(input_scaled)[0]
+        prediction = best_model.predict(input_scaled)[0]
         st.write(f"### Predicted Profit: ${prediction:,.2f}")
 
-        prediction = model.predict(input_scaled)[0]
-        st.write(f"### Predicted Profit: ${prediction:,.2f}")
 
