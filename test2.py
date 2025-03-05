@@ -5,18 +5,24 @@ from io import BytesIO
 # Streamlit App
 st.title("Auditors Planning Schedule Input Generator")
 
-# Step 1: Define Sites
+# Step 1: Define Sites and Activities
 st.subheader("Step 1: Define Sites and Activities")
 num_sites = st.number_input("How many sites do you want to add?", min_value=1, step=1, value=1)
 
-site_activity_data = {}  # Store activities for each site
+site_activity_data = {}  # Store activities and core status for each site
 
 for s in range(num_sites):
     site = st.text_input(f"Enter Site Name {s+1}", key=f"site_{s}")
     if site:
         activity_input = st.text_area(f"Enter activities for {site} (comma-separated)", key=f"activity_list_{s}")
         activity_list = [activity.strip() for activity in activity_input.split(",") if activity.strip()]
-        site_activity_data[site] = activity_list
+
+        activity_core_status = {}
+        for activity in activity_list:
+            is_core = st.checkbox(f"Mark '{activity}' as Core for {site}", key=f"core_{site}_{activity}")
+            activity_core_status[activity] = "Core" if is_core else "Non-Core"
+
+        site_activity_data[site] = activity_core_status
 
 # Initialize dictionary to store site-wise audit data
 site_audit_data = {}
@@ -24,7 +30,7 @@ site_audit_data = {}
 # Step 2: Add Audits for Each Site
 st.subheader("Step 2: Add Audits for Each Site")
 
-for site, activities in site_activity_data.items():
+for site, activity_details in site_activity_data.items():
     st.markdown(f"## Site: {site}")
 
     audit_data = []
@@ -38,7 +44,7 @@ for site, activities in site_activity_data.items():
 
         # Activity selection checkboxes
         st.write(f"Select Activities for Audit {i+1}")
-        selected_activities = {activity: st.checkbox(activity, key=f"{activity}_{site}_{i}") for activity in activities}
+        selected_activities = {activity: st.checkbox(activity, key=f"{activity}_{site}_{i}") for activity in activity_details.keys()}
 
         # Store audit details
         audit_entry = {
@@ -47,9 +53,10 @@ for site, activities in site_activity_data.items():
             "Mandays": mandays
         }
 
-        # Mark selected activities
+        # Mark selected activities and include core status
         for activity, selected in selected_activities.items():
             audit_entry[activity] = "✔️" if selected else "✖️"
+            audit_entry[f"{activity} (Core Status)"] = activity_details[activity]
 
         audit_data.append(audit_entry)
 
@@ -72,6 +79,7 @@ if st.button("Generate Excel"):
         file_name="Auditors_Planning_Schedule.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
 
 
 
