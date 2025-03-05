@@ -3,3 +3,7 @@ pandas
 openpyxl
 plotly_express
 xlsxwriter
+numpy
+seaborn
+matplotlib
+scikit-learn
