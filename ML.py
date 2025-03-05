@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.linear_model import ElasticNet
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, r2_score
 
 # Streamlit app title
-st.title("Startup Profit Prediction App 📈")
+st.title("Startup Profit Prediction App")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
@@ -41,15 +41,25 @@ if uploaded_file:
 
     # Hyperparameter tuning for ElasticNet
     param_grid = {
-        'alpha': [0.1, 0.5, 1, 5, 10],
-        'l1_ratio': [0.1, 0.5, 0.7, 0.9, 1.0]
+        'alpha': [0.1, 1, 10, 100],  # Regularization strength
+        'l1_ratio': [0.1, 0.5, 0.7, 1.0]  # Balance between L1 (Lasso) and L2 (Ridge)
     }
-    grid_search = GridSearchCV(ElasticNet(), param_grid, cv=5, scoring='neg_mean_squared_error')
+    grid_search = GridSearchCV(ElasticNet(), param_grid, cv=5, scoring='r2')
     grid_search.fit(X_train_scaled, y_train)
 
     # Best model
     best_model = grid_search.best_estimator_
     best_model.fit(X_train_scaled, y_train)
+
+    # Predict on test data
+    y_pred = best_model.predict(X_test_scaled)
+
+    # Compute accuracy metrics
+    r2 = r2_score(y_test, y_pred)
+    mse = mean_squared_error(y_test, y_pred)
+    st.write(f"### Model Performance")
+    st.write(f"R² Score: {r2:.4f}")
+    st.write(f"Mean Squared Error: {mse:.4f}")
 
     # Predict on uploaded dataset
     df['Predicted Profit'] = best_model.predict(scaler.transform(X))
@@ -78,5 +88,4 @@ if uploaded_file:
         input_scaled = scaler.transform(input_data)
         prediction = best_model.predict(input_scaled)[0]
         st.write(f"### Predicted Profit: ${prediction:,.2f}")
-
 
