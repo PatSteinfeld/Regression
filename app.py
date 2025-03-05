@@ -2,12 +2,16 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 
-# Streamlit App
+# Streamlit App Title
 st.title("Auditors Planning Schedule")
 
 # Sidebar Navigation
 st.sidebar.title("Navigation")
 app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
+
+# Initialize session state for data storage
+if "audit_data" not in st.session_state:
+    st.session_state.audit_data = {}
 
 # ---------------- INPUT GENERATOR ----------------
 if app_mode == "Input Generator":
@@ -71,34 +75,22 @@ if app_mode == "Input Generator":
         # Store data for this site
         site_audit_data[site] = pd.DataFrame(audit_data)
 
-    # Step 3: Generate Excel File
-    if st.button("Generate Excel"):
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            for site, df in site_audit_data.items():
-                df.to_excel(writer, sheet_name=site[:31], index=False)  # Sheet names max 31 characters
-
-        st.success("Excel file created successfully!")
-
-        # Provide download button
-        st.download_button(
-            label="Download Excel File",
-            data=output.getvalue(),
-            file_name="Auditors_Planning_Schedule.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+    # Store the input data in session state for direct use in schedule generator
+    if st.button("Save Data for Scheduling"):
+        st.session_state.audit_data = site_audit_data
+        st.success("Data saved! You can now proceed to the Schedule Generator.")
 
 # ---------------- SCHEDULE GENERATOR ----------------
 elif app_mode == "Schedule Generator":
     st.header("Schedule Generator")
 
-    # Upload input file
-    uploaded_file = st.file_uploader("Upload Audit Input Excel File", type=["xlsx"])
-
-    if uploaded_file:
-        # Load Excel file
-        xls = pd.ExcelFile(uploaded_file)
-        site_names = xls.sheet_names
+    # Check if data is available from Input Generator
+    if not st.session_state.audit_data:
+        st.warning("No input data found! Please first enter data in the 'Input Generator' section.")
+    else:
+        # Load stored data
+        site_audit_data = st.session_state.audit_data
+        site_names = list(site_audit_data.keys())
 
         # Define auditor availability
         num_auditors = st.number_input("Number of Auditors", min_value=1, step=1)
@@ -112,7 +104,7 @@ elif app_mode == "Schedule Generator":
         # Process each site
         schedule = {}
         for site in site_names:
-            df = pd.read_excel(xls, sheet_name=site)
+            df = site_audit_data[site].copy()
             df["Hours"] = 8  # Default each activity to 8 hours
 
             # Assign auditors
