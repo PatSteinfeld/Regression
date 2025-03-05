@@ -5,14 +5,20 @@ from io import BytesIO
 # Streamlit App
 st.title("Auditors Planning Schedule Input Generator")
 
-# Step 1: Select Site
+# Step 1: Define Activities
+st.subheader("Step 1: Define Activities for the Site")
+activity_input = st.text_area("Enter all activities (comma-separated)", key="activity_list")
+activity_list = [activity.strip() for activity in activity_input.split(",") if activity.strip()]
+
+# Step 2: Select Site
+st.subheader("Step 2: Select Site")
 site = st.selectbox("Select Site", ["Site A", "Site B", "Site C", "Site D"])
 
 # Store audit details
 audit_data = []
 
-# Step 2: Add Audit Details
-st.subheader("Add Audit Details")
+# Step 3: Add Audit Details
+st.subheader("Step 3: Add Audit Details")
 num_audits = st.number_input("How many audits do you want to add?", min_value=1, step=1, value=1)
 
 for i in range(num_audits):
@@ -21,10 +27,9 @@ for i in range(num_audits):
     proposed_date = st.date_input(f"Proposed Date {i+1}", key=f"date_{i}")
     mandays = st.number_input(f"Mandays {i+1}", min_value=1, step=1, key=f"mandays_{i}")
 
-    # Dynamic activity input
-    st.write(f"Enter Activities for Audit {i+1} (comma-separated)")
-    activity_input = st.text_area(f"Activities {i+1}", key=f"activities_{i}")
-    activity_list = [activity.strip() for activity in activity_input.split(",") if activity.strip()]
+    # Activity selection checkboxes
+    st.write(f"Select Activities for Audit {i+1}")
+    selected_activities = {activity: st.checkbox(activity, key=f"{activity}_{i}") for activity in activity_list}
 
     # Store audit details
     audit_entry = {
@@ -33,16 +38,16 @@ for i in range(num_audits):
         "Mandays": mandays
     }
 
-    # Add each activity as a separate column
-    for activity in activity_list:
-        audit_entry[activity] = "✔️"
+    # Mark selected activities
+    for activity, selected in selected_activities.items():
+        audit_entry[activity] = "✔️" if selected else "✖️"
 
     audit_data.append(audit_entry)
 
 # Convert data to DataFrame
 df = pd.DataFrame(audit_data)
 
-# Step 3: Generate Excel File
+# Step 4: Generate Excel File
 if st.button("Generate Excel"):
     output = BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
