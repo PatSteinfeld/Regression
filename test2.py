@@ -6,52 +6,58 @@ from io import BytesIO
 st.title("Auditors Planning Schedule Input Generator")
 
 # Step 1: Define Activities
-st.subheader("Step 1: Define Activities for the Site")
+st.subheader("Step 1: Define Activities")
 activity_input = st.text_area("Enter all activities (comma-separated)", key="activity_list")
 activity_list = [activity.strip() for activity in activity_input.split(",") if activity.strip()]
 
-# Step 2: Select Site
-st.subheader("Step 2: Select Site")
-site = st.selectbox("Select Site", ["Site A", "Site B", "Site C", "Site D"])
+# Initialize a dictionary to store site-wise data
+site_audit_data = {}
 
-# Store audit details
-audit_data = []
+# Step 2: Define Sites and Add Audits
+st.subheader("Step 2: Add Audits for Each Site")
+num_sites = st.number_input("How many sites do you want to add?", min_value=1, step=1, value=1)
 
-# Step 3: Add Audit Details
-st.subheader("Step 3: Add Audit Details")
-num_audits = st.number_input("How many audits do you want to add?", min_value=1, step=1, value=1)
+for s in range(num_sites):
+    site = st.text_input(f"Enter Site Name {s+1}", key=f"site_{s}")
+    
+    if site:
+        # Store audit details
+        audit_data = []
 
-for i in range(num_audits):
-    st.markdown(f"### Audit {i+1}")
-    audit_type = st.text_input(f"Audit Type {i+1}", key=f"audit_type_{i}")
-    proposed_date = st.date_input(f"Proposed Date {i+1}", key=f"date_{i}")
-    mandays = st.number_input(f"Mandays {i+1}", min_value=1, step=1, key=f"mandays_{i}")
+        num_audits = st.number_input(f"How many audits for {site}?", min_value=1, step=1, value=1, key=f"num_audits_{s}")
 
-    # Activity selection checkboxes
-    st.write(f"Select Activities for Audit {i+1}")
-    selected_activities = {activity: st.checkbox(activity, key=f"{activity}_{i}") for activity in activity_list}
+        for i in range(num_audits):
+            st.markdown(f"### Audit {i+1} for {site}")
+            audit_type = st.text_input(f"Audit Type {i+1}", key=f"audit_type_{s}_{i}")
+            proposed_date = st.date_input(f"Proposed Date {i+1}", key=f"date_{s}_{i}")
+            mandays = st.number_input(f"Mandays {i+1}", min_value=1, step=1, key=f"mandays_{s}_{i}")
 
-    # Store audit details
-    audit_entry = {
-        "Audit Type": audit_type,
-        "Proposed Date": proposed_date.strftime("%Y-%m-%d"),
-        "Mandays": mandays
-    }
+            # Activity selection checkboxes
+            st.write(f"Select Activities for Audit {i+1}")
+            selected_activities = {activity: st.checkbox(activity, key=f"{activity}_{s}_{i}") for activity in activity_list}
 
-    # Mark selected activities
-    for activity, selected in selected_activities.items():
-        audit_entry[activity] = "✔️" if selected else "✖️"
+            # Store audit details
+            audit_entry = {
+                "Audit Type": audit_type,
+                "Proposed Date": proposed_date.strftime("%Y-%m-%d"),
+                "Mandays": mandays
+            }
 
-    audit_data.append(audit_entry)
+            # Mark selected activities
+            for activity, selected in selected_activities.items():
+                audit_entry[activity] = "✔️" if selected else "✖️"
 
-# Convert data to DataFrame
-df = pd.DataFrame(audit_data)
+            audit_data.append(audit_entry)
 
-# Step 4: Generate Excel File
+        # Store data for this site
+        site_audit_data[site] = pd.DataFrame(audit_data)
+
+# Step 3: Generate Excel File
 if st.button("Generate Excel"):
     output = BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        df.to_excel(writer, sheet_name=site, index=False)
+        for site, df in site_audit_data.items():
+            df.to_excel(writer, sheet_name=site[:31], index=False)  # Sheet names max 31 characters
 
     st.success("Excel file created successfully!")
 
