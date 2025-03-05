@@ -2,9 +2,6 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 
-# Define available activities
-available_activities = ["Risk Assessment", "Leadership", "Document Control", "Safety Inspection"]
-
 # Streamlit App
 st.title("Auditors Planning Schedule Input Generator")
 
@@ -24,17 +21,23 @@ for i in range(num_audits):
     proposed_date = st.date_input(f"Proposed Date {i+1}", key=f"date_{i}")
     mandays = st.number_input(f"Mandays {i+1}", min_value=1, step=1, key=f"mandays_{i}")
 
-    # Activity selection
-    st.write(f"Select Activities for Audit {i+1}")
-    selected_activities = {activity: st.checkbox(activity, key=f"{activity}_{i}") for activity in available_activities}
-    
+    # Dynamic activity input
+    st.write(f"Enter Activities for Audit {i+1} (comma-separated)")
+    activity_input = st.text_area(f"Activities {i+1}", key=f"activities_{i}")
+    activity_list = [activity.strip() for activity in activity_input.split(",") if activity.strip()]
+
     # Store audit details
-    audit_data.append({
+    audit_entry = {
         "Audit Type": audit_type,
         "Proposed Date": proposed_date.strftime("%Y-%m-%d"),
-        "Mandays": mandays,
-        **selected_activities
-    })
+        "Mandays": mandays
+    }
+
+    # Add each activity as a separate column
+    for activity in activity_list:
+        audit_entry[activity] = "✔️"
+
+    audit_data.append(audit_entry)
 
 # Convert data to DataFrame
 df = pd.DataFrame(audit_data)
