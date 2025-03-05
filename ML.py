@@ -7,7 +7,7 @@ from sklearn.linear_model import ElasticNet
 from sklearn.preprocessing import StandardScaler
 
 # Streamlit app title
-st.title("Startup Profit Prediction App")
+st.title("Startup Profit Prediction 📈")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
