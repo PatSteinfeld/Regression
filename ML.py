@@ -8,7 +8,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error
 
 # Streamlit app title
-st.title("Startup Profit Prediction App")
+st.title("Startup Profit Prediction App 📈")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
