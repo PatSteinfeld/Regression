@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import ElasticNet
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_squared_error, r2_score
 
 # Streamlit app title
 st.title("Startup Profit Prediction App")
@@ -43,16 +42,6 @@ if uploaded_file:
     best_model = ElasticNet(alpha=1, l1_ratio=1.0)
     best_model.fit(X_train_scaled, y_train)
 
-    # Predict on test data
-    y_pred = best_model.predict(X_test_scaled)
-
-    # Compute accuracy metrics
-    r2 = r2_score(y_test, y_pred)
-    mse = mean_squared_error(y_test, y_pred)
-    st.write(f"### Model Performance")
-    st.write(f"R² Score: {r2:.4f}")
-    st.write(f"Mean Squared Error: {mse:.4f}")
-
     # Predict on uploaded dataset
     df['Predicted Profit'] = best_model.predict(scaler.transform(X))
     st.write("### Predicted Values for Uploaded Dataset")
@@ -80,5 +69,6 @@ if uploaded_file:
         input_scaled = scaler.transform(input_data)
         prediction = best_model.predict(input_scaled)[0]
         st.write(f"### Predicted Profit: ${prediction:,.2f}")
+
 
 
