@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import train_test_split
 from sklearn.linear_model import ElasticNet
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score
@@ -39,16 +39,8 @@ if uploaded_file:
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    # Hyperparameter tuning for ElasticNet
-    param_grid = {
-        'alpha': [0.1, 1, 10, 100],  # Regularization strength
-        'l1_ratio': [0.1, 0.5, 0.7, 1.0]  # Balance between L1 (Lasso) and L2 (Ridge)
-    }
-    grid_search = GridSearchCV(ElasticNet(), param_grid, cv=5, scoring='r2')
-    grid_search.fit(X_train_scaled, y_train)
-
-    # Best model
-    best_model = grid_search.best_estimator_
+    # Train ElasticNet model with best parameters
+    best_model = ElasticNet(alpha=1, l1_ratio=1.0)
     best_model.fit(X_train_scaled, y_train)
 
     # Predict on test data
@@ -88,4 +80,5 @@ if uploaded_file:
         input_scaled = scaler.transform(input_data)
         prediction = best_model.predict(input_scaled)[0]
         st.write(f"### Predicted Profit: ${prediction:,.2f}")
+
 
