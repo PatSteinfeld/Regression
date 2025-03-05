@@ -110,7 +110,13 @@ elif app_mode == "Schedule Generator":
             # Assign auditors
             df["Assigned Auditor"] = [None] * len(df)
             for i, row in df.iterrows():
-                available_auditors = [a for a in auditors if (not row["Core"]) or auditors[a]["coded"]]
+                # Identify core status dynamically
+                core_columns = [col for col in df.columns if "(Core Status)" in col]
+                is_core = any(row[col] == "Core" for col in core_columns)
+
+                # Only coded auditors should handle core activities
+                available_auditors = [a for a in auditors if (not is_core) or auditors[a]["coded"]]
+                
                 if available_auditors:
                     df.at[i, "Assigned Auditor"] = available_auditors[i % len(available_auditors)]
 
@@ -136,4 +142,5 @@ elif app_mode == "Schedule Generator":
                 file_name="Audit_Schedule.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
