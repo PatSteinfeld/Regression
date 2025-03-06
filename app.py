@@ -86,68 +86,77 @@ if app_mode == "Input Generator":
 elif app_mode == "Schedule Generator":
     st.header("Schedule Generator")
 
+    # Check if data is available from Input Generator
     if not st.session_state.audit_data:
         st.warning("No input data found! Please first enter data in the 'Input Generator' section.")
     else:
+        # Load stored data
         site_audit_data = st.session_state.audit_data
         site_names = list(site_audit_data.keys())
 
-        st.subheader("Step 1: Select Site and Define Auditors")
-        selected_site = st.selectbox("Select a site:", site_names)
+        # Define auditor availability
+        num_auditors = st.number_input("Number of Auditors", min_value=1, step=1, key="num_auditors")
+        auditors = {}
 
-        if selected_site:
-            df = site_audit_data[selected_site]
+        for i in range(num_auditors):
+            name = st.text_input(f"Auditor {i+1} Name", key=f"auditor_name_{i}")
+            coded = st.checkbox(f"Is {name} a Coded Auditor?", key=f"coded_{name}")
+            mandays = st.number_input(f"{name}'s Availability (Mandays)", min_value=1, step=1, key=f"mandays_{name}")
+            auditors[name] = {"coded": coded, "mandays": mandays}
 
-            # Step 2: Define Available Auditors
-            num_auditors = st.number_input("Enter number of auditors:", min_value=1, step=1, value=1)
-            auditors = {}
-            for i in range(num_auditors):
-                name = st.text_input(f"Auditor {i+1} Name:", key=f"auditor_{i}")
-                mandays = st.number_input(f"Mandays available for {name}:", min_value=1, step=1, key=f"mandays_{i}")
-                if name:
-                    auditors[name] = mandays * 8  # Convert mandays to hours
+        # Process each site
+        schedule = {}
+        for site in site_names:
+            df = site_audit_data[site].copy()
+            df["Start Time"] = None
+            df["End Time"] = None
+            df["Assigned Auditor"] = None
 
-            # Step 3: Generate Schedule
-            if st.button("Generate Schedule"):
-                schedule = []
-                start_time = datetime.strptime("09:00", "%H:%M")
-                lunch_start = datetime.strptime("13:00", "%H:%M")
-                lunch_end = datetime.strptime("13:30", "%H:%M")
+            start_time = datetime.strptime("09:00", "%H:%M")  # Work starts at 9:00 AM
+            lunch_start = datetime.strptime("13:00", "%H:%M")  # Lunch break at 1:00 PM
+            lunch_end = datetime.strptime("13:30", "%H:%M")  # Lunch ends at 1:30 PM
 
-                for _, row in df.iterrows():
-                    audit_type = row["Audit Type"]
-                    mandays = row["Mandays"]
-                    total_hours = mandays * 8
-                    activities = [col for col in df.columns if row[col] == "✔️"]
+            # Schedule activities
+            for i, row in df.iterrows():
+                core_columns = [col for col in df.columns if "(Core Status)" in col]
+                is_core = any(row[col] == "Core" for col in core_columns)
 
-                    if activities:
-                        activity_hours = min(total_hours / len(activities), 3)
+                available_auditors = [a for a in auditors if (not is_core) or auditors[a]["coded"]]
+                
+                if available_auditors:
+                    auditor_selected = st.selectbox(f"Assign Auditor for {site} - {row['Audit Type']}", available_auditors, key=f"auditor_{site}_{i}")
+                    df.at[i, "Assigned Auditor"] = auditor_selected
+                
+                # Allocate time (max 3 hours per activity)
+                end_time = start_time + timedelta(hours=3)
+                if start_time < lunch_start and end_time > lunch_start:
+                    end_time += timedelta(minutes=30)  # Extend for lunch break
+                
+                df.at[i, "Start Time"] = start_time.strftime("%H:%M")
+                df.at[i, "End Time"] = end_time.strftime("%H:%M")
+                
+                # Move start time for next activity
+                start_time = end_time
 
-                        for activity in activities:
-                            if start_time >= lunch_start and start_time < lunch_end:
-                                schedule.append(["Lunch Break", lunch_start.strftime("%I:%M %p"), lunch_end.strftime("%I:%M %p"), "—"])
-                                start_time = lunch_end
+            schedule[site] = df
 
-                            end_time = start_time + timedelta(hours=activity_hours)
-                            available_auditors = list(auditors.keys())
+        # Display schedule
+        for site, df in schedule.items():
+            st.subheader(f"Schedule for {site}")
+            st.dataframe(df)
 
-                            selected_auditors = st.multiselect(
-                                f"Select auditor(s) for {audit_type} - {activity}",
-                                available_auditors,
-                                key=f"{audit_type}_{activity}"
-                            )
+        # Save Schedule
+        if st.button("Generate Schedule"):
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                for site, df in schedule.items():
+                    df.to_excel(writer, sheet_name=site[:31], index=False)
 
-                            schedule.append([audit_type, activity, start_time.strftime("%I:%M %p"), end_time.strftime("%I:%M %p"), ", ".join(selected_auditors)])
-                            start_time = end_time
+            st.success("Schedule file created successfully!")
 
-                # Display & Download Schedule
-                st.subheader("Generated Audit Schedule")
-                schedule_df = pd.DataFrame(schedule, columns=["Audit Type", "Activity", "Start Time", "End Time", "Auditor(s)"])
-                st.write(schedule_df)
-
-                st.download_button(
-                    label="Download Schedule as Excel",
-                    data=schedule_df.to_csv(index=False).encode(),
-                    file_name="Audit_Schedule.csv",
-                    mime="text/csv"
-                )
+            st.download_button(
+                label="Download Schedule File",
+                data=output.getvalue(),
+                file_name="Audit_Schedule.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
