@@ -86,11 +86,9 @@ if app_mode == "Input Generator":
 elif app_mode == "Schedule Generator":
     st.header("Schedule Generator")
 
-    # Check if data is available from Input Generator
     if not st.session_state.audit_data:
         st.warning("No input data found! Please first enter data in the 'Input Generator' section.")
     else:
-        # Load stored data
         site_audit_data = st.session_state.audit_data
         site_names = list(site_audit_data.keys())
 
@@ -102,50 +100,49 @@ elif app_mode == "Schedule Generator":
             name = st.text_input(f"Auditor {i+1} Name", key=f"auditor_name_{i}")
             coded = st.checkbox(f"Is {name} a Coded Auditor?", key=f"coded_{name}")
             mandays = st.number_input(f"{name}'s Availability (Mandays)", min_value=1, step=1, key=f"mandays_{name}")
-            auditors[name] = {"coded": coded, "mandays": mandays}
+            auditors[name] = {"coded": coded, "mandays": mandays, "available_from": datetime.strptime("09:00", "%H:%M")}
 
-        # Process each site
         schedule = {}
+
         for site in site_names:
             df = site_audit_data[site].copy()
             df["Start Time"] = None
             df["End Time"] = None
             df["Assigned Auditor"] = None
 
-            start_time = datetime.strptime("09:00", "%H:%M")  # Work starts at 9:00 AM
-            lunch_start = datetime.strptime("13:00", "%H:%M")  # Lunch break at 1:00 PM
-            lunch_end = datetime.strptime("13:30", "%H:%M")  # Lunch ends at 1:30 PM
+            lunch_start = datetime.strptime("13:00", "%H:%M")
+            lunch_end = datetime.strptime("13:30", "%H:%M")
 
-            # Schedule activities
             for i, row in df.iterrows():
                 core_columns = [col for col in df.columns if "(Core Status)" in col]
                 is_core = any(row[col] == "Core" for col in core_columns)
 
+                # Get available auditors (coded only for core activities)
                 available_auditors = [a for a in auditors if (not is_core) or auditors[a]["coded"]]
-                
+
                 if available_auditors:
                     auditor_selected = st.selectbox(f"Assign Auditor for {site} - {row['Audit Type']}", available_auditors, key=f"auditor_{site}_{i}")
                     df.at[i, "Assigned Auditor"] = auditor_selected
-                
-                # Allocate time (max 3 hours per activity)
-                end_time = start_time + timedelta(hours=3)
-                if start_time < lunch_start and end_time > lunch_start:
-                    end_time += timedelta(minutes=30)  # Extend for lunch break
-                
-                df.at[i, "Start Time"] = start_time.strftime("%H:%M")
-                df.at[i, "End Time"] = end_time.strftime("%H:%M")
-                
-                # Move start time for next activity
-                start_time = end_time
+
+                    # Assign start and end time for the auditor
+                    start_time = auditors[auditor_selected]["available_from"]
+                    end_time = start_time + timedelta(hours=3)
+
+                    if start_time < lunch_start and end_time > lunch_start:
+                        end_time += timedelta(minutes=30)  # Adjust for lunch break
+
+                    df.at[i, "Start Time"] = start_time.strftime("%H:%M")
+                    df.at[i, "End Time"] = end_time.strftime("%H:%M")
+
+                    # Update auditor availability for the next task
+                    auditors[auditor_selected]["available_from"] = end_time
 
             schedule[site] = df
 
-        # Display schedule
         for site, df in schedule.items():
             st.subheader(f"Schedule for {site}")
             st.dataframe(df)
 
-        # Save Schedule
         if st.button("Generate Schedule"):
             output = BytesIO()
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
