@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-import BytesIO
+from io import BytesIO
+
 
 # Streamlit App Title
 st.title("Auditors Planning Schedule")
