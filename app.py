@@ -129,8 +129,7 @@ elif app_mode == "Schedule Generator":
         site_audit_data = st.session_state.audit_data
         site_names = list(site_audit_data.keys())
         selected_site = st.selectbox("Select Site for Scheduling", site_names)
-        site_names = [selected_site]
-
+        
         # Define auditor availability
         num_auditors = st.number_input("Number of Auditors", min_value=1, step=1)
         auditors = {}
@@ -142,7 +141,9 @@ elif app_mode == "Schedule Generator":
 
         # Get activities mentioned in input
         df = site_audit_data[selected_site].copy()
-        selected_activities = [activity for activity in df.columns if "(Core Status)" not in activity and df.iloc[0][activity] == "✔️"]
+        available_activities = [activity for activity in df.columns if "(Core Status)" not in activity and df.iloc[0][activity] == "✔️"]
+        
+        selected_activities = st.multiselect("Select Activities for Scheduling", available_activities)
 
         # Define schedule structure
         schedule_data = []
@@ -155,17 +156,15 @@ elif app_mode == "Schedule Generator":
         work_hours = 0  # Track daily work hours
         day_count = 1
         
-        for site in site_names:
-            while selected_activities:
-                activity = selected_activities.pop(0)
+        for site in [selected_site]:
+            for activity in selected_activities:
                 is_core = df.loc[0, f"{activity} (Core Status)"] == "Core" if f"{activity} (Core Status)" in df else False
-                available_auditors = [a for a in auditors if (not is_core or auditors[a]["coded"]) and not auditors[a]["assigned"]]
+                available_auditors = [a for a in auditors if (not is_core or auditors[a]["coded"]) and auditors[a]["mandays"] > 0]
                 
                 if not available_auditors:
                     continue  # Skip if no auditors are available
                 
                 assigned_auditor = st.selectbox(f"Select Auditor for {activity}", available_auditors, key=f"auditor_{activity}")
-                auditors[assigned_auditor]["assigned"] = True
                 
                 # Allow user to specify duration per activity
                 activity_duration = st.number_input(f"Enter hours for {activity}", min_value=1, max_value=8, step=1, key=f"duration_{activity}")
@@ -192,6 +191,7 @@ elif app_mode == "Schedule Generator":
                 # Move time forward
                 start_time = end_time
                 work_hours += activity_duration
+                auditors[assigned_auditor]["mandays"] -= 1  # Deduct from available mandays
         
         # Convert schedule data to DataFrame
         schedule_df = pd.DataFrame(schedule_data, columns=["Date", "Time of the Activity", "Name of the Activity", "Auditor Assigned"])
@@ -213,6 +213,7 @@ elif app_mode == "Schedule Generator":
                 file_name="Audit_Schedule.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
