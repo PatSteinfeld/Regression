@@ -137,7 +137,7 @@ elif app_mode == "Schedule Generator":
             name = st.text_input(f"Auditor {i+1} Name")
             coded = st.checkbox(f"Is {name} a Coded Auditor?", key=f"coded_{i}")
             mandays = st.number_input(f"{name}'s Availability (Mandays)", min_value=1, step=1, key=f"mandays_{i}")
-            auditors[name] = {"coded": coded, "mandays": mandays, "assigned": False}
+            auditors[name] = {"coded": coded, "mandays": mandays}
 
         # Get activities mentioned in input
         df = site_audit_data[selected_site].copy()
@@ -168,7 +168,8 @@ elif app_mode == "Schedule Generator":
             while duration > 0:
                 if start_time < lunch_start and start_time + timedelta(hours=duration) > lunch_start:
                     time_until_lunch = (lunch_start - start_time).seconds / 3600
-                    schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {lunch_start.strftime('%H:%M')}", activity, ""])
+                    assigned_auditor = available_auditors[0]  # Assign first available auditor
+                    schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {lunch_start.strftime('%H:%M')}", activity, assigned_auditor])
                     schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
                     start_time = lunch_end
                     duration -= time_until_lunch
@@ -183,7 +184,8 @@ elif app_mode == "Schedule Generator":
                     work_hours = 0
                 else:
                     end_time = start_time + timedelta(hours=duration)
-                    schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, ""])
+                    assigned_auditor = available_auditors[0]  # Assign first available auditor
+                    schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, assigned_auditor])
                     start_time = end_time
                     work_hours += duration
                     duration = 0
