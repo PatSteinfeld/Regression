@@ -200,8 +200,11 @@ elif app_mode == "Schedule Generator":
         schedule_df = pd.DataFrame(schedule_data, columns=["Date", "Time of the Activity", "Name of the Activity", "Auditor Assigned"])
         
         # Allow editing in table itself
-        edited_schedule = st.data_editor(schedule_df, num_rows="dynamic")
-
+        edited_schedule = st.data_editor(schedule_df, num_rows="dynamic", column_config={
+            "Time of the Activity": st.column_config.TextColumn("Time of the Activity"),
+            "Auditor Assigned": st.column_config.SelectboxColumn("Auditor Assigned", options=auditor_names, multiple=True)
+        })
+        
         # Save to Excel
         if st.button("Generate Schedule"):
             output = BytesIO()
@@ -215,6 +218,7 @@ elif app_mode == "Schedule Generator":
                 file_name="Audit_Schedule.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
