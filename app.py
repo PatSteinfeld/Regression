@@ -151,11 +151,15 @@ elif app_mode == "Schedule Generator":
         # Convert schedule data to DataFrame
         schedule_df = pd.DataFrame(schedule_data, columns=["Date", "Time of the Activity", "Name of the Activity", "Auditor Assigned"])
 
+        # Display schedule with edit option
+        st.subheader("Generated Schedule")
+        edited_schedule = st.data_editor(schedule_df, num_rows="dynamic")
+
         # Save to Excel
         if st.button("Generate Schedule"):
             output = BytesIO()
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                schedule_df.to_excel(writer, sheet_name="Schedule", index=False)
+                edited_schedule.to_excel(writer, sheet_name="Schedule", index=False)
 
             st.success("Schedule file created successfully!")
             st.download_button(
