@@ -172,8 +172,15 @@ elif app_mode == "Schedule Generator":
                 continue  # Skip if no auditors are available
             
             duration = st.number_input(f"Enter hours for {activity}", min_value=1, max_value=8, step=1, key=f"duration_{activity}")
-            end_time = start_time + timedelta(hours=duration)
             
+            assigned_auditors = st.multiselect(f"Select auditors for {activity}", auditor_names, default=available_auditors, key=f"auditors_{activity}")
+
+            if not assigned_auditors:
+                st.warning(f"No auditors assigned for {activity}. Please select at least one.")
+                continue
+
+            end_time = start_time + timedelta(hours=duration)
+
             if start_time < lunch_start and end_time > lunch_start:
                 schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
                 start_time = lunch_end
@@ -185,12 +192,18 @@ elif app_mode == "Schedule Generator":
                 start_time = datetime.strptime("09:00", "%H:%M")
                 work_hours = 0
             
-            assigned_auditors = st.multiselect(f"Select auditors for {activity}", auditor_names, default=available_auditors, key=f"auditors_{activity}")
+            # Add the activity to schedule
+            schedule_data.append([
+                current_date, 
+                f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", 
+                activity, 
+                ", ".join(assigned_auditors)
+            ])
             
-            schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, ", ".join(assigned_auditors)])
             start_time = end_time  # Update start time for next activity
             work_hours += duration
-            
+
+            # Deduct mandays for assigned auditors
             for auditor in assigned_auditors:
                 auditors[auditor]["available_from"] = end_time  # Update availability time
                 auditors[auditor]["mandays"] -= duration  # Deduct used mandays
