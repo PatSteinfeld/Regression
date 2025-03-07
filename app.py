@@ -116,51 +116,55 @@ elif app_mode == "Schedule Generator":
 
         for site in site_names:
             df = site_audit_data[site].copy()
-
+            
+            activity_queue = []  # Queue to track parallel activities
             for _, row in df.iterrows():
                 for activity in df.columns:
                     if "(Core Status)" in activity or row[activity] != "✔️":
                         continue  # Skip non-selected activities
-
+                    
                     is_core = row[f"{activity} (Core Status)"] == "Core"
                     available_auditors = [a for a in auditors if (not is_core) or auditors[a]["coded"]]
-
+                    
                     if not available_auditors:
                         continue  # Skip if no auditors are available
-
-                    assigned_auditor = available_auditors[0]  # Assign first available
+                    
+                    assigned_auditor = available_auditors.pop(0)  # Assign first available
                     end_time = start_time + timedelta(hours=3)
-
+                    
                     # Ensure lunch break
                     if start_time < lunch_start and end_time > lunch_start:
                         schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
                         start_time = lunch_end
                         end_time = start_time + timedelta(hours=3)
-
-                    # Store schedule data in tabular format
-                    schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, assigned_auditor])
                     
-                    # Move time forward
-                    start_time = end_time
-
+                    # Store schedule data in tabular format
+                    activity_queue.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, assigned_auditor])
+                    
+                    # If all auditors are occupied, move time forward
+                    if len(activity_queue) >= num_auditors:
+                        schedule_data.extend(activity_queue)
+                        activity_queue.clear()
+                        start_time = end_time
+                    
                     # Move to next day if required
                     if start_time.hour >= 17:
                         current_date += timedelta(days=1)
                         start_time = datetime.strptime("09:00", "%H:%M")
-
+        
         # Convert schedule data to DataFrame
         schedule_df = pd.DataFrame(schedule_data, columns=["Date", "Time of the Activity", "Name of the Activity", "Auditor Assigned"])
-
+        
         # Display schedule with edit option
         st.subheader("Generated Schedule")
         edited_schedule = st.data_editor(schedule_df, num_rows="dynamic")
-
+        
         # Save to Excel
         if st.button("Generate Schedule"):
             output = BytesIO()
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                 edited_schedule.to_excel(writer, sheet_name="Schedule", index=False)
-
+            
             st.success("Schedule file created successfully!")
             st.download_button(
                 label="Download Schedule File",
