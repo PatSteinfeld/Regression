@@ -19,6 +19,20 @@ if "audit_data" not in st.session_state:
 if app_mode == "Input Generator":
     st.header("Auditors Planning Schedule Input Generator")
 
+    # Predefined Activities
+    predefined_activities = {
+        "Meeting & Management": [
+            "Opening meeting", "Top management", "Management Representative",
+            "HR / Training", "Purchase / Procurement / Supply chain",
+            "Stores including scrap yard"
+        ],
+        "Maintenance Activities": [
+            "Mechanical Maintenance", "Electrical Maintenance", "Instrumentation Maintenance",
+            "Civil Maintenance", "Utilities"
+        ],
+        "Summarization of Day": []
+    }
+
     # Step 1: Define Sites and Activities
     st.subheader("Step 1: Define Sites and Activities")
     num_sites = st.number_input("How many sites do you want to add?", min_value=1, step=1, value=1)
@@ -28,15 +42,27 @@ if app_mode == "Input Generator":
     for s in range(num_sites):
         site = st.text_input(f"Enter Site Name {s+1}", key=f"site_{s}")
         if site:
-            activity_input = st.text_area(f"Enter activities for {site} (comma-separated)", key=f"activity_list_{s}")
-            activity_list = [activity.strip() for activity in activity_input.split(",") if activity.strip()]
+            # Predefined Activities Selection
+            st.write(f"### Select predefined activities for {site}")
+            selected_activities = {}
+            for category, activities in predefined_activities.items():
+                st.write(f"**{category}**")
+                for activity in activities:
+                    selected = st.checkbox(f"{activity}", key=f"predefined_{site}_{activity}")
+                    if selected:
+                        is_core = st.checkbox(f"Mark '{activity}' as Core", key=f"core_{site}_{activity}")
+                        selected_activities[activity] = "Core" if is_core else "Non-Core"
 
-            activity_core_status = {}
-            for activity in activity_list:
-                is_core = st.checkbox(f"Mark '{activity}' as Core for {site}", key=f"core_{site}_{activity}")
-                activity_core_status[activity] = "Core" if is_core else "Non-Core"
+            # Custom Activities Input
+            st.write(f"### Add Custom Activities for {site}")
+            activity_input = st.text_area(f"Enter activities (comma-separated)", key=f"activity_list_{s}")
+            custom_activity_list = [activity.strip() for activity in activity_input.split(",") if activity.strip()]
 
-            site_activity_data[site] = activity_core_status
+            for activity in custom_activity_list:
+                is_core = st.checkbox(f"Mark '{activity}' as Core", key=f"core_{site}_{activity}")
+                selected_activities[activity] = "Core" if is_core else "Non-Core"
+
+            site_activity_data[site] = selected_activities
 
     # Initialize dictionary to store site-wise audit data
     site_audit_data = {}
@@ -81,6 +107,7 @@ if app_mode == "Input Generator":
     if st.button("Save Data for Scheduling"):
         st.session_state.audit_data = site_audit_data
         st.success("Data saved! You can now proceed to the Schedule Generator.")
+
 
 
 
