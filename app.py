@@ -131,11 +131,13 @@ elif app_mode == "Schedule Generator":
         # Auditor inputs
         num_auditors = st.number_input("Number of Auditors", min_value=1, step=1)
         auditors = {}
+        auditor_names = []
         for i in range(num_auditors):
             name = st.text_input(f"Auditor {i+1} Name")
             coded = st.checkbox(f"Is {name} a Coded Auditor?", key=f"coded_{i}")
             mandays = st.number_input(f"{name}'s Availability (Mandays)", min_value=1, step=1, key=f"mandays_{i}")
             auditors[name] = {"coded": coded, "mandays": mandays, "available_from": datetime.strptime("09:00", "%H:%M")}
+            auditor_names.append(name)
 
         # Activities from input data
         df = site_audit_data[selected_site].copy()
@@ -150,8 +152,8 @@ elif app_mode == "Schedule Generator":
         lunch_end = datetime.strptime("13:30", "%H:%M")
         current_date = datetime.today().date()
 
-        # Opening Meeting - All Auditors
-        schedule_data.append([current_date, "09:00 - 10:00", "Opening Meeting", ", ".join(auditors.keys())])
+        # Opening Meeting - ALL AUDITORS explicitly listed
+        schedule_data.append([current_date, "09:00 - 10:00", "Opening Meeting", ", ".join(auditor_names)])
         for auditor in auditors:
             auditors[auditor]["available_from"] = datetime.strptime("10:00", "%H:%M")
 
@@ -191,9 +193,9 @@ elif app_mode == "Schedule Generator":
                     
                     duration = 0  
 
-        # Closing Meeting - All Auditors
+        # Closing Meeting - ALL AUDITORS explicitly listed
         closing_time = max(auditors[a]["available_from"] for a in auditors)
-        schedule_data.append([current_date, f"{closing_time.strftime('%H:%M')} - {closing_time + timedelta(hours=1):%H:%M}", "Closing Meeting", ", ".join(auditors.keys())])
+        schedule_data.append([current_date, f"{closing_time.strftime('%H:%M')} - {closing_time + timedelta(hours=1):%H:%M}", "Closing Meeting", ", ".join(auditor_names)])
 
         schedule_df = pd.DataFrame(schedule_data, columns=["Date", "Time of the Activity", "Name of the Activity", "Auditor Assigned"])
 
@@ -214,7 +216,6 @@ elif app_mode == "Schedule Generator":
                 file_name="Audit_Schedule.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-
 
 
 
