@@ -103,7 +103,7 @@ elif app_mode == "Schedule Generator":
             name = st.text_input(f"Auditor {i+1} Name")
             coded = st.checkbox(f"Is {name} a Coded Auditor?")
             mandays = st.number_input(f"{name}'s Availability (Mandays)", min_value=1, step=1)
-            auditors[name] = {"coded": coded, "mandays": mandays}
+            auditors[name] = {"coded": coded, "mandays": mandays, "assigned": False}
 
         # Define schedule structure
         schedule_data = []
@@ -117,35 +117,36 @@ elif app_mode == "Schedule Generator":
         for site in site_names:
             df = site_audit_data[site].copy()
             
-            activity_queue = []  # Queue to track parallel activities
             for _, row in df.iterrows():
                 for activity in df.columns:
                     if "(Core Status)" in activity or row[activity] != "✔️":
                         continue  # Skip non-selected activities
                     
                     is_core = row[f"{activity} (Core Status)"] == "Core"
-                    available_auditors = [a for a in auditors if (not is_core) or auditors[a]["coded"]]
+                    available_auditors = [a for a in auditors if (not is_core or auditors[a]["coded"]) and not auditors[a]["assigned"]]
                     
                     if not available_auditors:
                         continue  # Skip if no auditors are available
                     
-                    assigned_auditor = available_auditors.pop(0)  # Assign first available
-                    end_time = start_time + timedelta(hours=3)
+                    # Allow user to choose an auditor if multiple options exist
+                    assigned_auditor = st.selectbox(f"Select Auditor for {activity}", available_auditors)
+                    auditors[assigned_auditor]["assigned"] = True
+                    
+                    # Allow user to specify duration per activity
+                    activity_duration = st.number_input(f"Enter hours for {activity}", min_value=1, max_value=8, step=1)
+                    end_time = start_time + timedelta(hours=activity_duration)
                     
                     # Ensure lunch break
                     if start_time < lunch_start and end_time > lunch_start:
                         schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
                         start_time = lunch_end
-                        end_time = start_time + timedelta(hours=3)
+                        end_time = start_time + timedelta(hours=activity_duration)
                     
                     # Store schedule data in tabular format
-                    activity_queue.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, assigned_auditor])
+                    schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, assigned_auditor])
                     
-                    # If all auditors are occupied, move time forward
-                    if len(activity_queue) >= num_auditors:
-                        schedule_data.extend(activity_queue)
-                        activity_queue.clear()
-                        start_time = end_time
+                    # Move time forward
+                    start_time = end_time
                     
                     # Move to next day if required
                     if start_time.hour >= 17:
