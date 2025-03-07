@@ -192,7 +192,7 @@ elif app_mode == "Schedule Generator":
         
         edited_schedule = st.data_editor(schedule_df, num_rows="dynamic", column_config={
             "Time of the Activity": st.column_config.TextColumn("Time of the Activity"),
-            "Auditor Assigned": st.column_config.MultiSelectColumn("Auditor Assigned", options=auditor_names)
+            "Auditor Assigned": st.column_config.TextColumn("Auditor Assigned", help="Enter multiple auditors separated by commas.")
         })
         
         if st.button("Generate Schedule"):
@@ -206,7 +206,7 @@ elif app_mode == "Schedule Generator":
                 data=output.getvalue(),
                 file_name="Audit_Schedule.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            )        "
 
 
 
