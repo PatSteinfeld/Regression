@@ -185,7 +185,7 @@ elif app_mode == "Schedule Generator":
                 start_time = datetime.strptime("09:00", "%H:%M")
                 work_hours = 0
             
-            assigned_auditors = available_auditors  # Assign multiple auditors
+            assigned_auditors = st.multiselect(f"Select auditors for {activity}", auditor_names, default=available_auditors, key=f"auditors_{activity}")
             schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, ", ".join(assigned_auditors)])
             start_time = end_time
             work_hours += duration
@@ -218,6 +218,7 @@ elif app_mode == "Schedule Generator":
                 file_name="Audit_Schedule.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
