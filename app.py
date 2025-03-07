@@ -101,7 +101,7 @@ elif app_mode == "Schedule Generator":
         auditors = {}
         for i in range(num_auditors):
             name = st.text_input(f"Auditor {i+1} Name")
-            coded = st.checkbox(f"Is {name} a Coded Auditor?")
+            coded = st.checkbox(f"Is {name} a Coded Auditor?", key=f"coded_{i}")
             mandays = st.number_input(f"{name}'s Availability (Mandays)", min_value=1, step=1)
             auditors[name] = {"coded": coded, "mandays": mandays, "assigned": False}
 
@@ -173,3 +173,4 @@ elif app_mode == "Schedule Generator":
                 file_name="Audit_Schedule.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
