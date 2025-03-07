@@ -185,11 +185,11 @@ elif app_mode == "Schedule Generator":
                 start_time = datetime.strptime("09:00", "%H:%M")
                 work_hours = 0
             
-            assigned_auditors = ", ".join(available_auditors[:2])  # Assign first two available auditors
-            schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, assigned_auditors])
+            assigned_auditors = available_auditors  # Assign multiple auditors
+            schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, ", ".join(assigned_auditors)])
             start_time = end_time
             work_hours += duration
-            for auditor in available_auditors[:2]:
+            for auditor in assigned_auditors:
                 auditors[auditor]["available_from"] = end_time  # Update availability time
                 auditors[auditor]["mandays"] -= 1
         
@@ -202,7 +202,7 @@ elif app_mode == "Schedule Generator":
         # Allow editing in table itself
         edited_schedule = st.data_editor(schedule_df, num_rows="dynamic", column_config={
             "Time of the Activity": st.column_config.TextColumn("Time of the Activity"),
-            "Auditor Assigned": st.column_config.SelectboxColumn("Auditor Assigned", options=auditor_names, multiple=True)
+            "Auditor Assigned": st.column_config.MultiSelectColumn("Auditor Assigned", options=auditor_names)
         })
         
         # Save to Excel
@@ -218,7 +218,6 @@ elif app_mode == "Schedule Generator":
                 file_name="Audit_Schedule.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-
 
 
 
