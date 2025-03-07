@@ -163,8 +163,23 @@ elif app_mode == "Schedule Generator":
             if not available_auditors:
                 continue  # Skip if no auditors are available
             
-            # Store schedule data in tabular format
-            schedule_data.append([current_date, "", activity, ""])
+            duration = st.number_input(f"Enter hours for {activity}", min_value=1, max_value=8, step=1, key=f"duration_{activity}")
+            end_time = start_time + timedelta(hours=duration)
+            
+            if start_time < lunch_start and end_time > lunch_start:
+                schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
+                start_time = lunch_end
+                end_time = start_time + timedelta(hours=duration)
+            
+            if work_hours + duration > 8:
+                day_count += 1
+                current_date += timedelta(days=1)
+                start_time = datetime.strptime("09:00", "%H:%M")
+                work_hours = 0
+            
+            schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, ""])
+            start_time = end_time
+            work_hours += duration
         
         schedule_df = pd.DataFrame(schedule_data, columns=["Date", "Time of the Activity", "Name of the Activity", "Auditor Assigned"])
         
