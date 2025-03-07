@@ -186,12 +186,14 @@ elif app_mode == "Schedule Generator":
                 work_hours = 0
             
             assigned_auditors = st.multiselect(f"Select auditors for {activity}", auditor_names, default=available_auditors, key=f"auditors_{activity}")
+            
             schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, ", ".join(assigned_auditors)])
-            start_time = end_time
+            start_time = end_time  # Update start time for next activity
             work_hours += duration
+            
             for auditor in assigned_auditors:
                 auditors[auditor]["available_from"] = end_time  # Update availability time
-                auditors[auditor]["mandays"] -= 1
+                auditors[auditor]["mandays"] -= duration  # Deduct used mandays
         
         # Closing Meeting - Assign All Auditors
         closing_time = max(auditors[a]["available_from"] for a in auditors)
