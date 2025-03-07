@@ -172,6 +172,9 @@ elif app_mode == "Schedule Generator":
                     schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
                     start_time = lunch_end
                     duration -= time_until_lunch
+                elif start_time == lunch_start:
+                    schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
+                    start_time = lunch_end
                 elif work_hours + duration > 8:
                     # Move to next day
                     day_count += 1
