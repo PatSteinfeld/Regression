@@ -157,7 +157,7 @@ elif app_mode == "Schedule Generator":
         current_date = datetime.today().date()
         work_hours = 0  # Track daily work hours
         day_count = 1
-        all_auditors = ", ".join(auditor_names)
+        all_auditors = auditor_names.copy()
 
         # Opening Meeting - Assign All Auditors
         schedule_data.append([current_date, "09:00 - 10:00", "Opening Meeting", all_auditors])
@@ -175,7 +175,7 @@ elif app_mode == "Schedule Generator":
             end_time = start_time + timedelta(hours=duration)
             
             if start_time < lunch_start and end_time > lunch_start:
-                schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
+                schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", []])
                 start_time = lunch_end
                 end_time = start_time + timedelta(hours=duration)
             
@@ -186,7 +186,7 @@ elif app_mode == "Schedule Generator":
                 work_hours = 0
             
             assigned_auditors = available_auditors  # Assign multiple auditors
-            schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, ", ".join(assigned_auditors)])
+            schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, assigned_auditors])
             start_time = end_time
             work_hours += duration
             for auditor in assigned_auditors:
@@ -202,7 +202,7 @@ elif app_mode == "Schedule Generator":
         # Allow editing in table itself
         edited_schedule = st.data_editor(schedule_df, num_rows="dynamic", column_config={
             "Time of the Activity": st.column_config.TextColumn("Time of the Activity"),
-            "Auditor Assigned": st.column_config.MultiSelectColumn("Auditor Assigned", options=auditor_names)
+            "Auditor Assigned": st.column_config.SelectboxColumn("Auditor Assigned", options=auditor_names, required=True)
         })
         
         # Save to Excel
@@ -218,6 +218,7 @@ elif app_mode == "Schedule Generator":
                 file_name="Audit_Schedule.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
