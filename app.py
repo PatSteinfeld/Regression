@@ -135,7 +135,7 @@ elif app_mode == "Schedule Generator":
         auditors = {}
         auditor_names = []
         for i in range(num_auditors):
-            name = st.text_input(f"Auditor {i+1} Name")
+            name = st.text_input(f"Auditor {i+1} Name", key=f"auditor_{i}")
             coded = st.checkbox(f"Is {name} a Coded Auditor?", key=f"coded_{i}")
             mandays = st.number_input(f"{name}'s Availability (Mandays)", min_value=1, step=1, key=f"mandays_{i}")
             auditors[name] = {"coded": coded, "mandays": mandays, "available_from": datetime.strptime("09:00", "%H:%M")}
@@ -172,15 +172,14 @@ elif app_mode == "Schedule Generator":
                 continue  # Skip if no auditors are available
             
             duration = st.number_input(f"Enter hours for {activity}", min_value=1, max_value=8, step=1, key=f"duration_{activity}")
-            
             assigned_auditors = st.multiselect(f"Select auditors for {activity}", auditor_names, default=available_auditors, key=f"auditors_{activity}")
-
+            
             if not assigned_auditors:
                 st.warning(f"No auditors assigned for {activity}. Please select at least one.")
                 continue
-
+            
             end_time = start_time + timedelta(hours=duration)
-
+            
             if start_time < lunch_start and end_time > lunch_start:
                 schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
                 start_time = lunch_end
@@ -233,6 +232,7 @@ elif app_mode == "Schedule Generator":
                 file_name="Audit_Schedule.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
