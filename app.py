@@ -83,6 +83,7 @@ if app_mode == "Input Generator":
         st.success("Data saved! You can now proceed to the Schedule Generator.")
 
 
+
 # ---------------- SCHEDULE GENERATOR ----------------
 elif app_mode == "Schedule Generator":
     st.header("Schedule Generator")
@@ -111,6 +112,7 @@ elif app_mode == "Schedule Generator":
         start_time = datetime.strptime("09:00", "%H:%M")
         lunch_start = datetime.strptime("13:00", "%H:%M")
         lunch_end = datetime.strptime("13:30", "%H:%M")
+        current_date = datetime.today().date()
 
         for site in site_names:
             df = site_audit_data[site].copy()
@@ -131,18 +133,23 @@ elif app_mode == "Schedule Generator":
 
                     # Ensure lunch break
                     if start_time < lunch_start and end_time > lunch_start:
-                        schedule_data.append(["Lunch Break", lunch_start.strftime("%H:%M"), lunch_end.strftime("%H:%M"), "", ""])
+                        schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
                         start_time = lunch_end
                         end_time = start_time + timedelta(hours=3)
 
-                    # Store schedule data
-                    schedule_data.append([activity, start_time.strftime("%H:%M"), end_time.strftime("%H:%M"), assigned_auditor, ""])
+                    # Store schedule data in tabular format
+                    schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, assigned_auditor])
                     
                     # Move time forward
                     start_time = end_time
 
+                    # Move to next day if required
+                    if start_time.hour >= 17:
+                        current_date += timedelta(days=1)
+                        start_time = datetime.strptime("09:00", "%H:%M")
+
         # Convert schedule data to DataFrame
-        schedule_df = pd.DataFrame(schedule_data, columns=["Activity", "Start Time", "End Time", "Auditor", "Auditee"])
+        schedule_df = pd.DataFrame(schedule_data, columns=["Date", "Time of the Activity", "Name of the Activity", "Auditor Assigned"])
 
         # Save to Excel
         if st.button("Generate Schedule"):
