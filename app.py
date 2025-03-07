@@ -194,7 +194,10 @@ elif app_mode == "Schedule Generator":
                 auditors[assigned_auditor]["mandays"] -= 1  # Deduct from available mandays
         
         # Convert schedule data to DataFrame
-        schedule_df = pd.DataFrame(schedule_data, columns=["Date", "Time of the Activity", "Name of the Activity", "Auditor Assigned"])
+        if schedule_data:
+            schedule_df = pd.DataFrame(schedule_data, columns=["Date", "Time of the Activity", "Name of the Activity", "Auditor Assigned"])
+        else:
+            schedule_df = pd.DataFrame(columns=["Date", "Time of the Activity", "Name of the Activity", "Auditor Assigned"])
         
         # Display schedule with edit option
         st.subheader("Generated Schedule")
@@ -213,6 +216,7 @@ elif app_mode == "Schedule Generator":
                 file_name="Audit_Schedule.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
