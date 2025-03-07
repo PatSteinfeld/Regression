@@ -164,23 +164,27 @@ elif app_mode == "Schedule Generator":
                 continue  # Skip if no auditors are available
             
             duration = st.number_input(f"Enter hours for {activity}", min_value=1, max_value=8, step=1, key=f"duration_{activity}")
-            end_time = start_time + timedelta(hours=duration)
             
-            if start_time < lunch_start and end_time > lunch_start:
-                schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
-                start_time = lunch_end
-                end_time = start_time + timedelta(hours=duration)
-            
-            if work_hours + duration > 8:
-                day_count += 1
-                current_date += timedelta(days=1)
-                start_time = datetime.strptime("09:00", "%H:%M")
-                work_hours = 0
-            
-            schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, ""])
-            start_time = end_time
-            work_hours += duration
-        
+            while duration > 0:
+                if start_time < lunch_start and start_time + timedelta(hours=duration) > lunch_start:
+                    time_until_lunch = (lunch_start - start_time).seconds / 3600
+                    schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {lunch_start.strftime('%H:%M')}", activity, ""])
+                    schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
+                    start_time = lunch_end
+                    duration -= time_until_lunch
+                elif work_hours + duration > 8:
+                    # Move to next day
+                    day_count += 1
+                    current_date += timedelta(days=1)
+                    start_time = datetime.strptime("09:00", "%H:%M")
+                    work_hours = 0
+                else:
+                    end_time = start_time + timedelta(hours=duration)
+                    schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, ""])
+                    start_time = end_time
+                    work_hours += duration
+                    duration = 0
+
         schedule_df = pd.DataFrame(schedule_data, columns=["Date", "Time of the Activity", "Name of the Activity", "Auditor Assigned"])
         
         # Allow editing in table itself
