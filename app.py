@@ -156,42 +156,41 @@ elif app_mode == "Schedule Generator":
         work_hours = 0  # Track daily work hours
         day_count = 1
         
-        for site in [selected_site]:
-            for activity in selected_activities:
-                is_core = df.loc[0, f"{activity} (Core Status)"] == "Core" if f"{activity} (Core Status)" in df else False
-                available_auditors = [a for a in auditors if (not is_core or auditors[a]["coded"]) and auditors[a]["mandays"] > 0]
-                
-                if not available_auditors:
-                    continue  # Skip if no auditors are available
-                
-                assigned_auditor = st.selectbox(f"Select Auditor for {activity}", available_auditors, key=f"auditor_{activity}")
-                
-                # Allow user to specify duration per activity
-                activity_duration = st.number_input(f"Enter hours for {activity}", min_value=1, max_value=8, step=1, key=f"duration_{activity}")
-                
-                # Move to next day if exceeding 8 hours
-                if work_hours + activity_duration > 8:
-                    current_date += timedelta(days=1)
-                    start_time = datetime.strptime("09:00", "%H:%M")
-                    work_hours = 0
-                    day_count += 1
-                    schedule_data.append([f"Day {day_count}", "", "", ""])
-                
+        for activity in selected_activities:
+            is_core = df.loc[0, f"{activity} (Core Status)"] == "Core" if f"{activity} (Core Status)" in df else False
+            available_auditors = [a for a in auditors if (not is_core or auditors[a]["coded"]) and auditors[a]["mandays"] > 0]
+            
+            if not available_auditors:
+                continue  # Skip if no auditors are available
+            
+            assigned_auditor = st.selectbox(f"Select Auditor for {activity}", available_auditors, key=f"auditor_{activity}")
+            
+            # Allow user to specify duration per activity
+            activity_duration = st.number_input(f"Enter hours for {activity}", min_value=1, max_value=8, step=1, key=f"duration_{activity}")
+            
+            # Move to next day if exceeding 8 hours
+            if work_hours + activity_duration > 8:
+                current_date += timedelta(days=1)
+                start_time = datetime.strptime("09:00", "%H:%M")
+                work_hours = 0
+                day_count += 1
+                schedule_data.append([f"Day {day_count}", "", "", ""])
+            
+            end_time = start_time + timedelta(hours=activity_duration)
+            
+            # Ensure lunch break
+            if start_time < lunch_start and end_time > lunch_start:
+                schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
+                start_time = lunch_end
                 end_time = start_time + timedelta(hours=activity_duration)
-                
-                # Ensure lunch break
-                if start_time < lunch_start and end_time > lunch_start:
-                    schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
-                    start_time = lunch_end
-                    end_time = start_time + timedelta(hours=activity_duration)
-                
-                # Store schedule data in tabular format
-                schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, assigned_auditor])
-                
-                # Move time forward
-                start_time = end_time
-                work_hours += activity_duration
-                auditors[assigned_auditor]["mandays"] -= 1  # Deduct from available mandays
+            
+            # Store schedule data in tabular format
+            schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, assigned_auditor])
+            
+            # Move time forward
+            start_time = end_time
+            work_hours += activity_duration
+            auditors[assigned_auditor]["mandays"] -= 1  # Deduct from available mandays
         
         # Convert schedule data to DataFrame
         if schedule_data:
@@ -216,6 +215,7 @@ elif app_mode == "Schedule Generator":
                 file_name="Audit_Schedule.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
