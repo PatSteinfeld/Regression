@@ -95,6 +95,8 @@ elif app_mode == "Schedule Generator":
         # Load stored data
         site_audit_data = st.session_state.audit_data
         site_names = list(site_audit_data.keys())
+        selected_site = st.selectbox("Select Site for Scheduling", site_names)
+        site_names = [selected_site]
 
         # Define auditor availability
         num_auditors = st.number_input("Number of Auditors", min_value=1, step=1)
@@ -102,7 +104,7 @@ elif app_mode == "Schedule Generator":
         for i in range(num_auditors):
             name = st.text_input(f"Auditor {i+1} Name")
             coded = st.checkbox(f"Is {name} a Coded Auditor?", key=f"coded_{i}")
-            mandays = st.number_input(f"{name}'s Availability (Mandays)", min_value=1, step=1)
+            mandays = st.number_input(f"{name}'s Availability (Mandays)", min_value=1, step=1, key=f"mandays_{i}")
             auditors[name] = {"coded": coded, "mandays": mandays, "assigned": False}
 
         # Define schedule structure
@@ -133,7 +135,7 @@ elif app_mode == "Schedule Generator":
                     auditors[assigned_auditor]["assigned"] = True
                     
                     # Allow user to specify duration per activity
-                    activity_duration = st.number_input(f"Enter hours for {activity}", min_value=1, max_value=8, step=1)
+                    activity_duration = st.number_input(f"Enter hours for {activity}", min_value=1, max_value=8, step=1, key=f"duration_{activity}")
                     end_time = start_time + timedelta(hours=activity_duration)
                     
                     # Ensure lunch break
