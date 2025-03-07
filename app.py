@@ -212,8 +212,5 @@ elif app_mode == "Schedule Generator":
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-                data=output.getvalue(),
-                file_name="Audit_Schedule.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+
 
