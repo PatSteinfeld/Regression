@@ -140,10 +140,9 @@ elif app_mode == "Schedule Generator":
             mandays = st.number_input(f"{name}'s Availability (Mandays)", min_value=1, step=1, key=f"mandays_{i}")
             auditors[name] = {"coded": coded, "mandays": mandays, "assigned": False}
 
-        # Select activities for scheduling
+        # Get activities mentioned in input
         df = site_audit_data[selected_site].copy()
-        available_activities = [activity for activity in df.columns if "(Core Status)" not in activity]
-        selected_activities = st.multiselect("Select Activities to Schedule", available_activities)
+        selected_activities = [activity for activity in df.columns if "(Core Status)" not in activity and df.iloc[0][activity] == "✔️"]
 
         # Define schedule structure
         schedule_data = []
@@ -153,9 +152,12 @@ elif app_mode == "Schedule Generator":
         lunch_start = datetime.strptime("13:00", "%H:%M")
         lunch_end = datetime.strptime("13:30", "%H:%M")
         current_date = datetime.today().date()
+        work_hours = 0  # Track daily work hours
+        day_count = 1
         
         for site in site_names:
-            for activity in selected_activities:
+            while selected_activities:
+                activity = selected_activities.pop(0)
                 is_core = df.loc[0, f"{activity} (Core Status)"] == "Core" if f"{activity} (Core Status)" in df else False
                 available_auditors = [a for a in auditors if (not is_core or auditors[a]["coded"]) and not auditors[a]["assigned"]]
                 
@@ -167,6 +169,15 @@ elif app_mode == "Schedule Generator":
                 
                 # Allow user to specify duration per activity
                 activity_duration = st.number_input(f"Enter hours for {activity}", min_value=1, max_value=8, step=1, key=f"duration_{activity}")
+                
+                # Move to next day if exceeding 8 hours
+                if work_hours + activity_duration > 8:
+                    current_date += timedelta(days=1)
+                    start_time = datetime.strptime("09:00", "%H:%M")
+                    work_hours = 0
+                    day_count += 1
+                    schedule_data.append([f"Day {day_count}", "", "", ""])
+                
                 end_time = start_time + timedelta(hours=activity_duration)
                 
                 # Ensure lunch break
@@ -178,16 +189,9 @@ elif app_mode == "Schedule Generator":
                 # Store schedule data in tabular format
                 schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, assigned_auditor])
                 
-                # Remove scheduled activity from selection
-                selected_activities.remove(activity)
-                
                 # Move time forward
                 start_time = end_time
-                
-                # Move to next day if required
-                if start_time.hour >= 17:
-                    current_date += timedelta(days=1)
-                    start_time = datetime.strptime("09:00", "%H:%M")
+                work_hours += activity_duration
         
         # Convert schedule data to DataFrame
         schedule_df = pd.DataFrame(schedule_data, columns=["Date", "Time of the Activity", "Name of the Activity", "Auditor Assigned"])
@@ -209,6 +213,7 @@ elif app_mode == "Schedule Generator":
                 file_name="Audit_Schedule.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
