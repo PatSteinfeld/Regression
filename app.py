@@ -170,8 +170,8 @@ elif app_mode == "Schedule Generator":
         
         # Allow editing in table itself
         edited_schedule = st.data_editor(schedule_df, num_rows="dynamic", column_config={
-            "Time of the Activity": st.column_config.TextColumn("Time of the Activity", editable=True),
-            "Auditor Assigned": st.column_config.SelectboxColumn("Auditor Assigned", options=list(auditors.keys()), editable=True)
+            "Time of the Activity": st.column_config.TextColumn("Time of the Activity"),
+            "Auditor Assigned": st.column_config.SelectboxColumn("Auditor Assigned", options=list(auditors.keys()))
         })
         
         # Save to Excel
@@ -187,6 +187,7 @@ elif app_mode == "Schedule Generator":
                 file_name="Audit_Schedule.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
