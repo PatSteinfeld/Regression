@@ -118,6 +118,7 @@ if app_mode == "Input Generator":
 
 
 # ---------------- SCHEDULE GENERATOR ----------------
+# ---------------- SCHEDULE GENERATOR ----------------
 elif app_mode == "Schedule Generator":
     st.header("Schedule Generator")
 
@@ -137,101 +138,83 @@ elif app_mode == "Schedule Generator":
         for i in range(num_auditors):
             name = st.text_input(f"Auditor {i+1} Name", key=f"auditor_{i}")
             coded = st.checkbox(f"Is {name} a Coded Auditor?", key=f"coded_{i}")
-            mandays = st.number_input(f"{name}'s Availability (Mandays)", min_value=1, step=1, key=f"mandays_{i}")
-            auditors[name] = {"coded": coded, "mandays": mandays, "available_from": datetime.strptime("09:00", "%H:%M")}
+            auditors[name] = {"coded": coded}
             auditor_names.append(name)
 
-        # Get activities mentioned in input
-        df = site_audit_data[selected_site].copy()
+        # Select Audit & Site
+        selected_audit = st.selectbox("Select Audit to Plan", list(site_audit_data[selected_site].keys()))
+        
+        # Load Audit Data
+        df = site_audit_data[selected_site][selected_audit].copy()
         available_activities = [activity for activity in df.columns if "(Core Status)" not in activity and df.iloc[0][activity] == "✔️"]
         
-        selected_activities = st.multiselect("Select Activities for Scheduling", available_activities)
-
-        # Define schedule structure
-        schedule_data = []
+        # Define Mandays & Work Hours
+        mandays = st.number_input("Enter Number of Mandays", min_value=1, step=1)
+        total_hours = mandays * 8
+        num_activities = len(available_activities)
+        hours_per_activity = total_hours // num_activities if num_activities else 0
         
-        # Time slots
+        # Schedule Initialization
+        schedule_data = []
         start_time = datetime.strptime("09:00", "%H:%M")
         lunch_start = datetime.strptime("13:00", "%H:%M")
         lunch_end = datetime.strptime("13:30", "%H:%M")
         current_date = datetime.today().date()
-        work_hours = 0  # Track daily work hours
-        day_count = 1
-        all_auditors = auditor_names.copy()
+        work_hours = 0
 
-        # Opening Meeting - Assign All Auditors
-        schedule_data.append([current_date, "09:00 - 10:00", "Opening Meeting", ", ".join(all_auditors)])
+        def assign_auditors(activity):
+            is_core = df.loc[0, f"{activity} (Core Status)"] == "Core" if f"{activity} (Core Status)" in df else False
+            return [a for a in auditors if not is_core or auditors[a]["coded"]]
+
+        # Opening Meeting
+        schedule_data.append([current_date, "09:00 - 10:00", "Opening Meeting", ", ".join(auditor_names)])
         start_time += timedelta(hours=1)
         work_hours += 1
 
-        for activity in selected_activities:
-            is_core = df.loc[0, f"{activity} (Core Status)"] == "Core" if f"{activity} (Core Status)" in df else False
-            available_auditors = [a for a in auditors if (not is_core or auditors[a]["coded"]) and auditors[a]["mandays"] > 0]
-            
+        # Auto-Schedule Activities
+        for activity in available_activities:
+            available_auditors = assign_auditors(activity)
             if not available_auditors:
-                continue  # Skip if no auditors are available
-            
-            duration = st.number_input(f"Enter hours for {activity}", min_value=1, max_value=8, step=1, key=f"duration_{activity}")
-            assigned_auditors = st.multiselect(f"Select auditors for {activity}", auditor_names, default=available_auditors, key=f"auditors_{activity}")
-            
-            if not assigned_auditors:
-                st.warning(f"No auditors assigned for {activity}. Please select at least one.")
                 continue
             
-            end_time = start_time + timedelta(hours=duration)
+            end_time = start_time + timedelta(hours=hours_per_activity)
             
             if start_time < lunch_start and end_time > lunch_start:
                 schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
                 start_time = lunch_end
-                end_time = start_time + timedelta(hours=duration)
+                end_time = start_time + timedelta(hours=hours_per_activity)
             
-            if work_hours + duration > 8:
-                day_count += 1
+            if work_hours + hours_per_activity > 8:
                 current_date += timedelta(days=1)
                 start_time = datetime.strptime("09:00", "%H:%M")
                 work_hours = 0
             
-            # Add the activity to schedule
             schedule_data.append([
-                current_date, 
-                f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", 
-                activity, 
-                ", ".join(assigned_auditors)
+                current_date,
+                f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}",
+                activity,
+                ", ".join(available_auditors)
             ])
             
-            start_time = end_time  # Update start time for next activity
-            work_hours += duration
+            start_time = end_time
+            work_hours += hours_per_activity
 
-            # Deduct mandays for assigned auditors
-            for auditor in assigned_auditors:
-                auditors[auditor]["available_from"] = end_time  # Update availability time
-                auditors[auditor]["mandays"] -= duration  # Deduct used mandays
-        
-        # Closing Meeting - Assign All Auditors
-        closing_time = max(auditors[a]["available_from"] for a in auditors)
-        schedule_data.append([current_date, f"{closing_time.strftime('%H:%M')} - {(closing_time + timedelta(hours=1)).strftime('%H:%M')}", "Closing Meeting", ", ".join(all_auditors)])
-        
-        schedule_df = pd.DataFrame(schedule_data, columns=["Date", "Time of the Activity", "Name of the Activity", "Auditor Assigned"])
-        
-        # Allow editing in table itself
-        edited_schedule = st.data_editor(schedule_df, num_rows="dynamic", column_config={
-            "Time of the Activity": st.column_config.TextColumn("Time of the Activity"),
-            "Auditor Assigned": st.column_config.TextColumn("Auditor Assigned")
-        })
-        
-        # Save to Excel
+        # Closing Meeting
+        schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {(start_time + timedelta(hours=1)).strftime('%H:%M')}", "Closing Meeting", ", ".join(auditor_names)])
+
+        # Convert to DataFrame
+        schedule_df = pd.DataFrame(schedule_data, columns=["Date", "Time", "Activity", "Auditor Assigned"])
+
+        # Editable Schedule Table
+        edited_schedule = st.data_editor(schedule_df, num_rows="dynamic")
+
+        # Export to Excel
         if st.button("Generate Schedule"):
             output = BytesIO()
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                 edited_schedule.to_excel(writer, sheet_name="Schedule", index=False)
-            
             st.success("Schedule file created successfully!")
-            st.download_button(
-                label="Download Schedule File",
-                data=output.getvalue(),
-                file_name="Audit_Schedule.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            st.download_button("Download Schedule File", output.getvalue(), "Audit_Schedule.xlsx", "app
 
 
 
