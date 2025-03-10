@@ -168,7 +168,7 @@ elif app_mode == "Schedule Generator":
         work_hours = 0
 
         def assign_auditors(activity):
-            is_core = df_json.get(f"{activity} (Core Status)", "Non-Core") == "Core"
+            is_core = df_json.get(f"{activity} (Core Status)", pd.Series(["Non-Core"])).iloc[0] == "Core"
             return [a for a in auditors if not is_core or auditors[a]["coded"]]
 
         # Auto-Schedule Activities
