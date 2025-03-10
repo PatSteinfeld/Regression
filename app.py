@@ -145,15 +145,17 @@ elif app_mode == "Schedule Generator":
 
             end_time = start_time + timedelta(hours=duration)
 
-            if start_time < lunch_start and end_time > lunch_start:
-                schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
-                start_time = lunch_end
-                end_time = start_time + timedelta(hours=duration)
-
+            # Ensure max 8 hours per day
             if work_hours + duration > 8:
                 current_date += timedelta(days=1)
                 start_time = datetime.strptime("09:00", "%H:%M")
                 work_hours = 0
+
+            # Handle lunch break
+            if start_time < lunch_start and end_time > lunch_start:
+                schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
+                start_time = lunch_end
+                end_time = start_time + timedelta(hours=duration)
 
             schedule_data.append([current_date, f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}", activity, ", ".join(assigned_auditors)])
             start_time = end_time
@@ -171,6 +173,7 @@ elif app_mode == "Schedule Generator":
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                 edited_schedule.to_excel(writer, sheet_name="Schedule", index=False)
             st.download_button("Download Schedule File", output.getvalue(), "Audit_Schedule.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
