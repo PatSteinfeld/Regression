@@ -118,6 +118,23 @@ if app_mode == "Input Generator":
 
 
 
+import streamlit as st
+import pandas as pd
+import json
+from datetime import datetime, timedelta
+from io import BytesIO
+
+# Streamlit App Title
+st.title("Auditors Planning Schedule")
+
+# Sidebar Navigation
+st.sidebar.title("Navigation")
+app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
+
+# Initialize session state for data storage
+if "audit_data" not in st.session_state:
+    st.session_state.audit_data = {}
+
 # ---------------- SCHEDULE GENERATOR ----------------
 elif app_mode == "Schedule Generator":
     st.header("Schedule Generator")
@@ -140,12 +157,9 @@ elif app_mode == "Schedule Generator":
             coded = st.checkbox(f"Is {name} a Coded Auditor?", key=f"coded_{i}")
             auditors[name] = {"coded": coded}
             auditor_names.append(name)
-
-        # Select Audit & Site
-        selected_audit = st.selectbox("Select Audit to Plan", list(site_audit_data[selected_site].keys()))
         
         # Ensure data is handled in JSON format
-        df_json = site_audit_data[selected_site][selected_audit]
+        df_json = site_audit_data[selected_site]
         
         # Extract available activities
         available_activities = [col for col, val in df_json.items() if val == "✔️"]
@@ -222,6 +236,7 @@ elif app_mode == "Schedule Generator":
                 edited_schedule.to_excel(writer, sheet_name="Schedule", index=False)
             st.success("Schedule file created successfully!")
             st.download_button("Download Schedule File", output.getvalue(), "Audit_Schedule.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
