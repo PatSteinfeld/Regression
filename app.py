@@ -143,9 +143,11 @@ elif app_mode == "Schedule Generator":
         # Select Audit & Site
         selected_audit = st.selectbox("Select Audit to Plan", list(site_audit_data[selected_site].keys()))
         
-        # Load Audit Data
-        df = site_audit_data[selected_site][selected_audit].copy()
-        available_activities = [activity for activity in df.columns if df.at[0, activity] == "*"]
+        # Load Audit Data (Ensure it's a DataFrame)
+        df = pd.DataFrame(site_audit_data[selected_site][selected_audit])
+        
+        # Get available activities
+        available_activities = [col for col in df.columns if df[col].astype(str).str.contains("\*").any()]
         
         # Define Mandays & Work Hours
         mandays = st.number_input("Enter Number of Mandays", min_value=1, step=1)
@@ -165,7 +167,8 @@ elif app_mode == "Schedule Generator":
         work_hours = 0
 
         def assign_auditors(activity):
-            is_core = df.at[0, f"{activity} (Core Status)"] == "Core" if f"{activity} (Core Status)" in df.columns else False
+            core_status_col = f"{activity} (Core Status)"
+            is_core = df.get(core_status_col, pd.Series(False)).astype(str).str.contains("Core").any()
             return [a for a in auditors if not is_core or auditors[a]["coded"]]
 
         # Auto-Schedule Activities
@@ -216,6 +219,7 @@ elif app_mode == "Schedule Generator":
                 edited_schedule.to_excel(writer, sheet_name="Schedule", index=False)
             st.success("Schedule file created successfully!")
             st.download_button("Download Schedule File", output.getvalue(), "Audit_Schedule.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
