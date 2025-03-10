@@ -145,7 +145,7 @@ elif app_mode == "Schedule Generator":
         
         # Load Audit Data
         df = site_audit_data[selected_site][selected_audit].copy()
-        available_activities = [activity for activity in df.columns if df.iloc[0][activity] == "*"]
+        available_activities = [activity for activity in df.columns if df.at[0, activity] == "*"]
         
         # Define Mandays & Work Hours
         mandays = st.number_input("Enter Number of Mandays", min_value=1, step=1)
@@ -165,7 +165,10 @@ elif app_mode == "Schedule Generator":
         work_hours = 0
 
         def assign_auditors(activity):
-            is_core = df.loc[0, f"{activity} (Core Status)"] == "Core" if f"{activity} (Core Status)" in df else False
+            if f"{activity} (Core Status)" in df.columns:
+                is_core = df.at[0, f"{activity} (Core Status)"] == "Core"
+            else:
+                is_core = False
             return [a for a in auditors if not is_core or auditors[a]["coded"]]
 
         # Auto-Schedule Activities
