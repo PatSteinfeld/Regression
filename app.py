@@ -165,10 +165,7 @@ elif app_mode == "Schedule Generator":
         work_hours = 0
 
         def assign_auditors(activity):
-            if f"{activity} (Core Status)" in df.columns:
-                is_core = df.at[0, f"{activity} (Core Status)"] == "Core"
-            else:
-                is_core = False
+            is_core = df.at[0, f"{activity} (Core Status)"] == "Core" if f"{activity} (Core Status)" in df.columns else False
             return [a for a in auditors if not is_core or auditors[a]["coded"]]
 
         # Auto-Schedule Activities
@@ -219,6 +216,7 @@ elif app_mode == "Schedule Generator":
                 edited_schedule.to_excel(writer, sheet_name="Schedule", index=False)
             st.success("Schedule file created successfully!")
             st.download_button("Download Schedule File", output.getvalue(), "Audit_Schedule.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
