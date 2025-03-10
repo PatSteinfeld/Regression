@@ -129,7 +129,7 @@ elif app_mode == "Schedule Generator":
         site_audit_data = st.session_state.audit_data
         site_names = list(site_audit_data.keys())
         selected_site = st.selectbox("Select Site for Scheduling", site_names)
-        
+
         # Define auditor availability
         num_auditors = st.number_input("Number of Auditors", min_value=1, step=1)
         auditors = {}
@@ -142,22 +142,29 @@ elif app_mode == "Schedule Generator":
 
         # Select Audit & Site
         selected_audit = st.selectbox("Select Audit to Plan", list(site_audit_data[selected_site].keys()))
-        
-        # Load Audit Data (Ensure it's a DataFrame)
+
+        # Load Audit Data
         df = pd.DataFrame(site_audit_data[selected_site][selected_audit])
-        
-        # Get available activities
-        available_activities = [col for col in df.columns if df[col].astype(str).str.contains("\*").any()]
-        
+
+        # Clean column names (strip spaces)
+        df.columns = df.columns.str.strip()
+
+        # Ensure '*' is detected correctly in activity columns
+        available_activities = [col for col in df.columns if df[col].astype(str).str.contains(r"\*", na=False).any()]
+
+        # Debugging: Print available activities
+        st.write("Available Activities:", available_activities)
+        st.write(df.head())  # Debugging: Check data structure if needed
+
         # Define Mandays & Work Hours
         mandays = st.number_input("Enter Number of Mandays", min_value=1, step=1)
         total_hours = mandays * 8
         num_activities = len(available_activities)
         hours_per_activity = total_hours // num_activities if num_activities else 0
-        
+
         # User selects activities to schedule
         selected_activities = st.multiselect("Select Activities for Scheduling", available_activities)
-        
+
         # Schedule Initialization
         schedule_data = []
         start_time = datetime.strptime("09:00", "%H:%M")
@@ -167,8 +174,10 @@ elif app_mode == "Schedule Generator":
         work_hours = 0
 
         def assign_auditors(activity):
-            core_status_col = f"{activity} (Core Status)"
-            is_core = df.get(core_status_col, pd.Series(False)).astype(str).str.contains("Core").any()
+            if f"{activity} (Core Status)" in df.columns:
+                is_core = df.at[0, f"{activity} (Core Status)"] == "Core"
+            else:
+                is_core = False
             return [a for a in auditors if not is_core or auditors[a]["coded"]]
 
         # Auto-Schedule Activities
@@ -176,36 +185,36 @@ elif app_mode == "Schedule Generator":
             available_auditors = assign_auditors(activity)
             if not available_auditors:
                 continue
-            
+
             duration = st.number_input(f"Enter hours for {activity}", min_value=1, max_value=8, step=1, key=f"duration_{activity}")
             assigned_auditors = st.multiselect(f"Select auditors for {activity}", auditor_names, default=available_auditors, key=f"auditors_{activity}")
-            
+
             if not assigned_auditors:
                 st.warning(f"No auditors assigned for {activity}. Please select at least one.")
                 continue
-            
+
             end_time = start_time + timedelta(hours=duration)
-            
+
             if start_time < lunch_start and end_time > lunch_start:
                 schedule_data.append([current_date, "13:00 - 13:30", "Lunch Break", ""])
                 start_time = lunch_end
                 end_time = start_time + timedelta(hours=duration)
-            
+
             if work_hours + duration > 8:
                 current_date += timedelta(days=1)
                 start_time = datetime.strptime("09:00", "%H:%M")
                 work_hours = 0
-            
+
             schedule_data.append([
                 current_date,
                 f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}",
                 activity,
                 ", ".join(assigned_auditors)
             ])
-            
+
             start_time = end_time
             work_hours += duration
-        
+
         # Convert to DataFrame
         schedule_df = pd.DataFrame(schedule_data, columns=["Date", "Time", "Activity", "Auditor Assigned"])
 
@@ -219,6 +228,7 @@ elif app_mode == "Schedule Generator":
                 edited_schedule.to_excel(writer, sheet_name="Schedule", index=False)
             st.success("Schedule file created successfully!")
             st.download_button("Download Schedule File", output.getvalue(), "Audit_Schedule.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
