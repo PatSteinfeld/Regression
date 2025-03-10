@@ -143,16 +143,13 @@ elif app_mode == "Schedule Generator":
         # Select Audit & Site
         selected_audit = st.selectbox("Select Audit to Plan", list(site_audit_data[selected_site].keys()))
         
-        # Load Audit Data
-        df = site_audit_data[selected_site][selected_audit].copy()
+        # Ensure df is always a DataFrame
+        df = pd.DataFrame(site_audit_data[selected_site][selected_audit])
 
-        # Debugging - Check if df is loaded correctly
-        st.write("Audit Data Preview:", df.head())
+        # Extract available activities
+        available_activities = [col for col in df.columns if df.iloc[0][col] == "*"]
 
-        # Extract Available Activities
-        available_activities = [col for col in df.columns if "*" in df[col].astype(str).values]
-
-        # Debugging - Show extracted activities
+        # Display available activities
         st.write("Available Activities:", available_activities)
 
         # Define Mandays & Work Hours
@@ -163,10 +160,6 @@ elif app_mode == "Schedule Generator":
         
         # User selects activities to schedule
         selected_activities = st.multiselect("Select Activities for Scheduling", available_activities)
-
-        # Ensure there are available activities
-        if not available_activities:
-            st.warning("No activities detected! Please check your input data.")
         
         # Schedule Initialization
         schedule_data = []
@@ -177,10 +170,7 @@ elif app_mode == "Schedule Generator":
         work_hours = 0
 
         def assign_auditors(activity):
-            if f"{activity} (Core Status)" in df.columns:
-                is_core = df.at[0, f"{activity} (Core Status)"] == "Core"
-            else:
-                is_core = False
+            is_core = f"{activity} (Core Status)" in df.columns and df.at[0, f"{activity} (Core Status)"] == "Core"
             return [a for a in auditors if not is_core or auditors[a]["coded"]]
 
         # Auto-Schedule Activities
