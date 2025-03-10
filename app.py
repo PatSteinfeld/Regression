@@ -118,23 +118,6 @@ if app_mode == "Input Generator":
 
 
 
-import streamlit as st
-import pandas as pd
-import json
-from datetime import datetime, timedelta
-from io import BytesIO
-
-# Streamlit App Title
-st.title("Auditors Planning Schedule")
-
-# Sidebar Navigation
-st.sidebar.title("Navigation")
-app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
-
-# Initialize session state for data storage
-if "audit_data" not in st.session_state:
-    st.session_state.audit_data = {}
-
 # ---------------- SCHEDULE GENERATOR ----------------
 elif app_mode == "Schedule Generator":
     st.header("Schedule Generator")
@@ -146,14 +129,14 @@ elif app_mode == "Schedule Generator":
         # Load stored data
         site_audit_data = st.session_state.audit_data
         site_names = list(site_audit_data.keys())
-        selected_site = st.selectbox("Select Site for Scheduling", site_names)
+        selected_site = st.selectbox("Select Site for Scheduling", site_names, key="selected_site")
         
         # Define auditor availability
-        num_auditors = st.number_input("Number of Auditors", min_value=1, step=1)
+        num_auditors = st.number_input("Number of Auditors", min_value=1, step=1, key="num_auditors")
         auditors = {}
         auditor_names = []
         for i in range(num_auditors):
-            name = st.text_input(f"Auditor {i+1} Name", key=f"auditor_{i}")
+            name = st.text_input(f"Auditor {i+1} Name", key=f"auditor_name_{i}")
             coded = st.checkbox(f"Is {name} a Coded Auditor?", key=f"coded_{i}")
             auditors[name] = {"coded": coded}
             auditor_names.append(name)
@@ -168,13 +151,13 @@ elif app_mode == "Schedule Generator":
         st.write("Available Activities:", available_activities)
 
         # Define Mandays & Work Hours
-        mandays = st.number_input("Enter Number of Mandays", min_value=1, step=1)
+        mandays = st.number_input("Enter Number of Mandays", min_value=1, step=1, key="mandays")
         total_hours = mandays * 8
         num_activities = len(available_activities)
         hours_per_activity = total_hours // num_activities if num_activities else 0
         
         # User selects activities to schedule
-        selected_activities = st.multiselect("Select Activities for Scheduling", available_activities)
+        selected_activities = st.multiselect("Select Activities for Scheduling", available_activities, key="selected_activities")
         
         # Schedule Initialization
         schedule_data = []
@@ -227,15 +210,15 @@ elif app_mode == "Schedule Generator":
         schedule_df = pd.DataFrame(schedule_data, columns=["Date", "Time", "Activity", "Auditor Assigned"])
 
         # Editable Schedule Table
-        edited_schedule = st.data_editor(schedule_df, num_rows="dynamic")
+        edited_schedule = st.data_editor(schedule_df, num_rows="dynamic", key="edited_schedule")
 
         # Export to Excel
-        if st.button("Generate Schedule"):
+        if st.button("Generate Schedule", key="generate_schedule"):
             output = BytesIO()
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                 edited_schedule.to_excel(writer, sheet_name="Schedule", index=False)
             st.success("Schedule file created successfully!")
-            st.download_button("Download Schedule File", output.getvalue(), "Audit_Schedule.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            st.download_button("Download Schedule File", output.getvalue(), "Audit_Schedule.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="download_schedule")
 
 
 
