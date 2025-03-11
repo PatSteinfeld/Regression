@@ -123,13 +123,14 @@ if app_mode == "Schedule Generator":
         auditors = st.text_area("Enter Auditors' Names (One per line)").split('\n')
         coded_auditors = st.multiselect("Select Coded Auditors", auditors)
 
+        start_time_str = st.text_input("Enter Start Time (HH:MM)", "09:00")
+        start_time = datetime.strptime(start_time_str, '%H:%M')
+        lunch_start = datetime.strptime('13:00', '%H:%M')
+        lunch_end = datetime.strptime('13:30', '%H:%M')
+        end_time = datetime.strptime('18:00', '%H:%M')
+
         if st.button("Generate Schedule"):
             schedule_data = []
-            start_time_str = st.text_input("Enter Start Time (HH:MM)", "09:00")
-            start_time = datetime.strptime(start_time_str, '%H:%M')
-            lunch_start = datetime.strptime('13:00', '%H:%M')
-            lunch_end = datetime.strptime('13:30', '%H:%M')
-            end_time = datetime.strptime('18:00', '%H:%M')
 
             if "auditor_assignments" not in st.session_state:
                 st.session_state.auditor_assignments = {}
@@ -152,7 +153,8 @@ if app_mode == "Schedule Generator":
                             st.session_state.auditor_assignments[activity] = []
 
                         assigned_auditors = st.multiselect(f"Assign Auditors for Activity: {activity}", allowed_auditors,
-                                                         key=f"auditors_{activity}")
+                                                         key=f"auditors_{activity}",
+                                                         default=st.session_state.auditor_assignments.get(activity, []))
 
                         st.session_state.auditor_assignments[activity] = assigned_auditors
 
@@ -190,7 +192,7 @@ if app_mode == "Schedule Generator":
             df = pd.DataFrame(schedule_data, columns=["Audit Type", "Site", "Activity", "Core Status", "Assigned Auditors", "Start Time", "End Time"])
 
             st.write("### Generated Schedule")
-            edited_df = st.experimental_data_editor(df, use_container_width=True)
+            edited_df = st.data_editor(df, use_container_width=True)
 
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
