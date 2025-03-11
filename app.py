@@ -145,7 +145,14 @@ if app_mode == "Schedule Generator":
                         else:
                             allowed_auditors = auditors
 
-                        assigned_auditors = st.multiselect(f"Assign Auditors for Activity: {activity}", allowed_auditors)
+                        if activity not in st.session_state.auditor_assignments:
+                            st.session_state.auditor_assignments[activity] = []
+
+                        assigned_auditors = st.multiselect(f"Assign Auditors for Activity: {activity}", allowed_auditors,
+                                                         key=f"auditors_{activity}")
+
+                        st.session_state.auditor_assignments[activity] = assigned_auditors
+
                         actual_time = st.number_input(f"Time Allocated for {activity} (in hours)", min_value=0.0, value=time_per_activity)
 
                         current_end_time = start_time + timedelta(hours=actual_time)
