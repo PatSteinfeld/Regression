@@ -117,27 +117,24 @@ if app_mode == "Schedule Generator":
     if not st.session_state.audit_data:
         st.warning("No data available. Please use the Input Generator to add data.")
     else:
+        selected_site = st.selectbox("Select Site", list(st.session_state.audit_data.keys()))
+        selected_audit_type = st.selectbox("Select Audit Type", predefined_audit_types)
+
+        if st.button("Generate Schedule"):
+            schedule_data = []
+
+            for audit in st.session_state.audit_data[selected_site]:
+                if audit["Audit Type"] == selected_audit_type:
+                    for activity, status in audit["Activities"].items():
+                        schedule_data.append([audit["Audit Type"], selected_site, activity, status, audit["Core Status"][activity], audit["Total Hours"]])
+
+            df = pd.DataFrame(schedule_data, columns=["Audit Type", "Site", "Activity", "Status", "Core Status", "Total Hours"])
+            st.write(df)
+
+            st.download_button("Download Schedule as Excel", data=df.to_excel(BytesIO(), index=False), file_name="Schedule.xlsx")
+
         st.session_state.schedule_generated = True
 
-        for site, audits in st.session_state.audit_data.items():
-            st.subheader(f"Site: {site}")
-
-            for audit in audits:
-                st.markdown(f"### Audit: {audit['Audit Type']}")
-                st.markdown(f"Proposed Date: {audit['Proposed Date']}")
-                st.markdown(f"Total Hours: {audit['Total Hours']}")
-
-                num_auditors = st.number_input("Number of Auditors", min_value=1, step=1, key=f"num_auditors_{site}")
-
-                auditors = []
-                for j in range(num_auditors):
-                    auditor_name = st.text_input(f"Auditor {j+1} Name", key=f"auditor_{site}_{j}")
-                    is_coded = st.checkbox(f"Is Coded Auditor?", key=f"coded_{site}_{j}")
-                    auditors.append({"Name": auditor_name, "Coded": is_coded})
-
-                st.write("Auditors Assigned:", auditors)
-
-        st.success("Schedule generation complete! The data is now locked.")
 
 
 
