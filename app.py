@@ -140,7 +140,7 @@ if app_mode == "Schedule Generator":
 
                     if num_activities > 0:
                         time_per_activity = round(total_hours / num_activities, 2)
-                        st.session_state.time_per_activity = time_per_activity  # Store in session state
+                        st.session_state.time_per_activity = time_per_activity  
 
                         for activity in activities:
                             core_status = audit["Core Status"][activity]
