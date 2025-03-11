@@ -127,7 +127,7 @@ if app_mode == "Schedule Generator":
         if st.button("Generate Schedule"):
             schedule_data = []
             start_time = datetime.strptime('09:00', '%H:%M')
-            st.session_state.auditor_assignments = {}  # Initialize auditor assignments as empty
+            st.session_state.auditor_assignments = {}
 
             for audit in st.session_state.audit_data[selected_site]:
                 if audit["Audit Type"] == selected_audit_type:
@@ -189,15 +189,16 @@ if app_mode == "Schedule Generator":
                     options=allowed_auditors,
                     key=f"auditor_{index}"
                 )
-                
-                # Check for time clashes
+
                 if assigned_auditor:
                     if assigned_auditor not in st.session_state.auditor_assignments:
                         st.session_state.auditor_assignments[assigned_auditor] = []
                     
                     clash_detected = False
                     for activity_range in st.session_state.auditor_assignments[assigned_auditor]:
-                        if (activity_start < activity_range[1] and activity_end > activity_range[0]):
+                        assigned_start, assigned_end = activity_range
+                        
+                        if (activity_start < assigned_end and activity_end > assigned_start):  # Proper overlap detection
                             st.error(f"❌ Time Clash Detected! '{assigned_auditor}' is already assigned during this period.")
                             clash_detected = True
                             break
@@ -205,11 +206,17 @@ if app_mode == "Schedule Generator":
                     if not clash_detected:
                         st.session_state.auditor_assignments[assigned_auditor].append((activity_start, activity_end))
 
-                edited_schedule.at[index, 'Assigned Auditor'] = assigned_auditor
+                    # Check if coded auditor is required for core activities
+                    if row["Core Status"] == "Core" and assigned_auditor not in coded_auditors:
+                        st.warning(f"❌ '{assigned_auditor}' is not a coded auditor and cannot be assigned to core activities.")
+                        clash_detected = True
+
+                if not clash_detected:
+                    edited_schedule.at[index, 'Assigned Auditor'] = assigned_auditor
 
             st.session_state.schedule_data = edited_schedule
 
-            # Display the entire schedule
+            # Display the complete schedule
             st.write("### Complete Schedule")
             st.write(st.session_state.schedule_data)
 
