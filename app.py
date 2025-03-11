@@ -125,7 +125,8 @@ if app_mode == "Schedule Generator":
 
         if st.button("Generate Schedule"):
             schedule_data = []
-            start_time = datetime.strptime('09:00', '%H:%M')
+            start_time_str = st.text_input("Enter Start Time (HH:MM)", "09:00")
+            start_time = datetime.strptime(start_time_str, '%H:%M')
             lunch_start = datetime.strptime('13:00', '%H:%M')
             lunch_end = datetime.strptime('13:30', '%H:%M')
             end_time = datetime.strptime('18:00', '%H:%M')
@@ -179,7 +180,7 @@ if app_mode == "Schedule Generator":
             df = pd.DataFrame(schedule_data, columns=["Audit Type", "Site", "Activity", "Core Status", "Assigned Auditor", "Start Time", "End Time"])
 
             st.write("### Generated Schedule")
-            edited_df = st.experimental_data_editor(df, use_container_width=True)
+            edited_df = st.data_editor(df, use_container_width=True)
 
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
