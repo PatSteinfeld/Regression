@@ -135,39 +135,40 @@ if app_mode == "Schedule Generator":
 
             for audit in st.session_state.audit_data[selected_site]:
                 if audit["Audit Type"] == selected_audit_type:
-                    total_hours = audit["Total Hours"]
                     activities = [activity for activity, status in audit["Activities"].items() if status == "✔️"]
-                    num_activities = len(activities)
 
-                    if num_activities > 0:
-                        time_per_activity = round(total_hours / num_activities, 2)
-                        st.session_state.time_per_activity = time_per_activity  
+                    for activity in activities:
+                        core_status = audit["Core Status"][activity]
+                        allowed_auditors = coded_auditors if core_status == "Core" else auditors
 
-                        for activity in activities:
-                            core_status = audit["Core Status"][activity]
-                            allowed_auditors = coded_auditors if core_status == "Core" else auditors
+                        activity_hours = st.number_input(f"Enter Hours for '{activity}'", min_value=0.0, max_value=8.0, value=1.0, step=0.5)
+                        current_end_time = start_time + timedelta(hours=activity_hours)
 
-                            current_end_time = start_time + timedelta(hours=time_per_activity)
-                            if start_time < lunch_start <= current_end_time:
-                                schedule_data.append(["Lunch Break", "N/A", lunch_start.strftime('%H:%M'), lunch_end.strftime('%H:%M'), "N/A"])
-                                start_time = lunch_end
-                                current_end_time = start_time + timedelta(hours=time_per_activity)
+                        if start_time < lunch_start <= current_end_time:
+                            schedule_data.append(["Lunch Break", "N/A", lunch_start.strftime('%H:%M'), lunch_end.strftime('%H:%M'), "N/A"])
+                            start_time = lunch_end
+                            current_end_time = start_time + timedelta(hours=activity_hours)
 
-                            schedule_data.append([
-                                activity,
-                                core_status,
-                                start_time.strftime('%H:%M'),
-                                current_end_time.strftime('%H:%M'),
-                                allowed_auditors[0] if allowed_auditors else ""
-                            ])
+                        selected_auditor = st.selectbox(f"Select Auditor for '{activity}'", allowed_auditors, key=activity)
 
-                            start_time = current_end_time
+                        schedule_data.append([
+                            activity,
+                            core_status,
+                            start_time.strftime('%H:%M'),
+                            current_end_time.strftime('%H:%M'),
+                            selected_auditor
+                        ])
+
+                        start_time = current_end_time
+                        if start_time >= end_time:
+                            break
 
             st.session_state.schedule_data = pd.DataFrame(schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor"])
 
         if not st.session_state.schedule_data.empty:
             st.write("### Editable Schedule")
-            st.write(st.session_state.schedule_data)
+            edited_schedule = st.experimental_data_editor(st.session_state.schedule_data, use_container_width=True)
+            st.session_state.schedule_data = edited_schedule
 
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -175,6 +176,7 @@ if app_mode == "Schedule Generator":
             st.download_button("Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
 
         st.session_state.schedule_generated = True
+
 
 
 
