@@ -1,14 +1,3 @@
-import streamlit as st
-import pandas as pd
-from openpyxl import Workbook
-from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.worksheet.table import Table, TableStyleInfo
-
-import json
-from datetime import datetime, timedelta
-from io import BytesIO
-from st_aggrid import AgGrid, GridOptionsBuilder
-
 # Streamlit App Title
 st.title("Auditors Planning Schedule")
 
@@ -121,65 +110,88 @@ if app_mode == "Schedule Generator":
     st.header("Schedule Generator")
 
     if not st.session_state.audit_data:
-        st.warning("No audit data found. Please generate audit data in the Input Generator first.")
+        st.warning("No data available. Please use the Input Generator to add data.")
     else:
-        schedule_data = []
+        selected_site = st.selectbox("Select Site", list(st.session_state.audit_data.keys()))
+        selected_audit_type = st.selectbox("Select Audit Type", predefined_audit_types)
 
-        for site, audits in st.session_state.audit_data.items():
-            for audit in audits:
-                for activity, status in audit['Activities'].items():
-                    if status == "✔️":
-                        start_time = st.time_input(f"Start Time for {activity} ({site})", key=f"start_{site}_{activity}")
-                        end_time = st.time_input(f"End Time for {activity} ({site})", key=f"end_{site}_{activity}")
+        auditors = st.text_area("Enter Auditors' Names (One per line)").split('\n')
+        coded_auditors = st.multiselect("Select Coded Auditors", auditors)
 
-                        available_auditors = st.session_state.coded_auditors if audit['Core Status'][activity] == "Core" else st.session_state.coded_auditors
-                        selected_auditors = st.multiselect(f"Assign Auditors for {activity} ({site})", available_auditors, key=f"auditors_{site}_{activity}")
+        if st.button("Generate Schedule"):
+            schedule_data = []
+            start_time = datetime.strptime('09:00', '%H:%M')
+            st.session_state.auditor_assignments = {}  # Initialize auditor assignments as empty
 
-                        if selected_auditors:
-                            for auditor in selected_auditors:
-                                if auditor in st.session_state.auditor_assignments:
-                                    for existing_start, existing_end in st.session_state.auditor_assignments[auditor]:
-                                        if not (end_time <= existing_start or start_time >= existing_end):
-                                            st.warning(f"Time clash detected for {auditor} while assigning {activity} at {site}.")
-                                            break
+            for audit in st.session_state.audit_data[selected_site]:
+                if audit["Audit Type"] == selected_audit_type:
+                    activities = [activity for activity, status in audit["Activities"].items() if status == "✔️"]
 
-                                if auditor not in st.session_state.auditor_assignments:
-                                    st.session_state.auditor_assignments[auditor] = []
+                    for activity in activities:
+                        core_status = audit["Core Status"][activity]
+                        allowed_auditors = coded_auditors if core_status == "Core" else auditors
 
-                                st.session_state.auditor_assignments[auditor].append((start_time, end_time))
+                        schedule_data.append([
+                            activity,
+                            core_status,
+                            start_time.strftime('%H:%M'),
+                            "",
+                            "",
+                            ", ".join(allowed_auditors)
+                        ])
+                        
+                        # Update start_time for the next activity
+                        start_time += timedelta(minutes=90)
+                        if start_time.strftime('%H:%M') == '13:00':  # Handle lunch break
+                            start_time += timedelta(minutes=30)
 
-                        schedule_data.append({
-                            "Site": site,
-                            "Audit Type": audit['Audit Type'],
-                            "Proposed Date": audit['Proposed Date'],
-                            "Activity": activity,
-                            "Start Time": start_time.strftime("%H:%M"),
-                            "End Time": end_time.strftime("%H:%M"),
-                            "Assigned Auditors": ", ".join(selected_auditors)
-                        })
+            st.session_state.schedule_data = pd.DataFrame(schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"])
 
-        if schedule_data:
-            schedule_df = pd.DataFrame(schedule_data)
-            st.dataframe(schedule_df)
+        if not st.session_state.schedule_data.empty:
+            st.write("### Editable Schedule")
 
-# Downloadable Excel file
-output = BytesIO()
-with pd.ExcelWriter(output, engine='openpyxl') as writer:
-    schedule_df.to_excel(writer, index=False, sheet_name='Audit Schedule')
-    
-    workbook = writer.book
-    worksheet = workbook['Audit Schedule']
-    
-    # Create an Excel Table
-    table = Table(displayName="AuditScheduleTable", ref=f"A1:{chr(65 + len(schedule_df.columns) - 1)}{len(schedule_df) + 1}")
-    style = TableStyleInfo(
-        name="TableStyleMedium9",
-        showFirstColumn=False,
-        showLastColumn=False,
-        showRowStripes=True,
-        showColumnStripes=True
-    )
-    table.tableStyleInfo = style
-    worksheet.add_table(table)
-    
-output.seek(0)
+            edited_schedule = st.session_state.schedule_data.copy()
+
+            for index, row in edited_schedule.iterrows():
+                st.write(f"### Activity {index + 1}: {row['Activity']}")
+
+                start_time_input = st.text_input(f"Start Time for Activity {index + 1}", value=row['Start Time'])
+                if start_time_input:
+                    try:
+                        activity_start = datetime.strptime(start_time_input, '%H:%M')
+                        activity_hours = st.number_input(f"Enter Hours for '{row['Activity']}'", min_value=0.0, max_value=8.0, value=1.5, step=0.5)
+                        activity_end = activity_start + timedelta(hours=activity_hours)
+                        edited_schedule.at[index, 'Start Time'] = start_time_input
+                        edited_schedule.at[index, 'End Time'] = activity_end.strftime('%H:%M')
+                    except ValueError:
+                        st.warning("Invalid time format. Please use HH:MM.")
+
+                # Ensure only coded auditors are assigned to core activities
+                allowed_auditors = row['Allowed Auditors'].split(", ")
+                assigned_auditor = st.selectbox(f"Assign Auditor for '{row['Activity']}'", options=allowed_auditors, key=f"auditor_{index}")
+                
+                # Check for time clashes
+                if assigned_auditor in st.session_state.auditor_assignments:
+                    auditor_schedule = st.session_state.auditor_assignments[assigned_auditor]
+                    for activity_range in auditor_schedule:
+                        if (activity_start < activity_range[1] and activity_end > activity_range[0]):
+                            st.error(f"Time Clash Detected! '{assigned_auditor}' is already assigned to another activity during this period.")
+                
+                # Store auditor assignment
+                if assigned_auditor not in st.session_state.auditor_assignments:
+                    st.session_state.auditor_assignments[assigned_auditor] = []
+                    
+                st.session_state.auditor_assignments[assigned_auditor].append((activity_start, activity_end))
+                
+                # Update the table
+                edited_schedule.at[index, 'Assigned Auditor'] = assigned_auditor
+            
+            st.session_state.schedule_data = edited_schedule
+
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                st.session_state.schedule_data.to_excel(writer, sheet_name='Schedule', index=False)
+            st.download_button("Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
+
+        st.session_state.schedule_generated = True
+
