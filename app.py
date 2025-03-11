@@ -110,6 +110,7 @@ if app_mode == "Input Generator":
             st.success("Data saved! You can now proceed to the Schedule Generator.")
 
 
+
 # ---------------- SCHEDULE GENERATOR ----------------
 if app_mode == "Schedule Generator":
     st.header("Schedule Generator")
@@ -166,27 +167,11 @@ if app_mode == "Schedule Generator":
 
         if not st.session_state.schedule_data.empty:
             st.write("### Editable Schedule")
-            edited_data = st.session_state.schedule_data.copy()
-
-            for index, row in edited_data.iterrows():
-                allowed_auditors = coded_auditors if row['Core Status'] == 'Core' else auditors
-                selected_auditor = st.selectbox(f"Select Auditor for {row['Activity']}", allowed_auditors, key=f"auditor_{index}")
-                edited_data.at[index, 'Assigned Auditor'] = selected_auditor
-
-                new_start_time_str = st.text_input(f"Enter Start Time for {row['Activity']}", value=row['Start Time'], key=f"start_time_{index}")
-                try:
-                    new_start_time = datetime.strptime(new_start_time_str, '%H:%M')
-                    new_end_time = new_start_time + timedelta(hours=st.session_state.time_per_activity)
-                    edited_data.at[index, 'Start Time'] = new_start_time.strftime('%H:%M')
-                    edited_data.at[index, 'End Time'] = new_end_time.strftime('%H:%M')
-                except ValueError:
-                    pass
-
-            st.write(edited_data)
+            st.write(st.session_state.schedule_data)
 
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                edited_data.to_excel(writer, sheet_name='Schedule', index=False)
+                st.session_state.schedule_data.to_excel(writer, sheet_name='Schedule', index=False)
             st.download_button("Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
 
         st.session_state.schedule_generated = True
