@@ -110,7 +110,7 @@ if app_mode == "Input Generator":
             st.success("Data saved! You can now proceed to the Schedule Generator.")
 
 
----------------- SCHEDULE GENERATOR ----------------
+#---------------- SCHEDULE GENERATOR ----------------
 if app_mode == "Schedule Generator":
     st.header("Schedule Generator")
 
