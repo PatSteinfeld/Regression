@@ -126,7 +126,6 @@ if app_mode == "Schedule Generator":
 
         if st.button("Generate Schedule"):
             schedule_data = []
-            st.session_state.auditor_time_slots = {auditor: [] for auditor in auditors}
             start_time = datetime.strptime('09:00', '%H:%M')
 
             for audit in st.session_state.audit_data[selected_site]:
@@ -146,47 +145,51 @@ if app_mode == "Schedule Generator":
                         ])
                         
                         # Update start_time for the next activity
-                        start_time += timedelta(minutes=90)
+                        start_time += timedelta(minutes=90)  # Default duration of 1.5 hours per activity
                         if start_time.strftime('%H:%M') == '13:00':  # Handle lunch break
                             start_time += timedelta(minutes=30)
 
-            st.session_state.schedule_data = pd.DataFrame(
-                schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor"]
-            )
+            st.session_state.schedule_data = pd.DataFrame(schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor"])
 
         if not st.session_state.schedule_data.empty:
             st.write("### Editable Schedule")
-            for index, row in st.session_state.schedule_data.iterrows():
+
+            edited_schedule = st.session_state.schedule_data.copy()
+
+            for index, row in edited_schedule.iterrows():
                 if row["Start Time"]:
                     try:
                         activity_start = datetime.strptime(row["Start Time"], '%H:%M')
-                        activity_hours = st.number_input(
-                            f"Enter Hours for '{row['Activity']}'", min_value=0.0, max_value=8.0, value=1.5, step=0.5
-                        )
+                        activity_hours = st.number_input(f"Enter Hours for '{row['Activity']}'", min_value=0.0, max_value=8.0, value=1.5, step=0.5)
                         activity_end = activity_start + timedelta(hours=activity_hours)
-                        st.session_state.schedule_data.at[index, "End Time"] = activity_end.strftime('%H:%M')
+                        edited_schedule.at[index, "End Time"] = activity_end.strftime('%H:%M')
+                    except:
+                        pass
 
-                        assigned_auditor = st.selectbox(
-                            f"Select Auditor for '{row['Activity']}'",
-                            auditors,
-                            key=f"auditor_{index}"
-                        )
+                edited_schedule.at[index, "Assigned Auditor"] = st.selectbox(
+                    f"Select Auditor for '{row['Activity']}'", auditors, key=f"auditor_select_{index}"
+                )
+            
+            # Check for time clashes
+            assigned_auditors = {}
+            for index, row in edited_schedule.iterrows():
+                if row["Assigned Auditor"]:
+                    auditor = row["Assigned Auditor"]
+                    start_time = row["Start Time"]
+                    end_time = row["End Time"]
+                    
+                    if auditor in assigned_auditors:
+                        for existing_start, existing_end in assigned_auditors[auditor]:
+                            if not (end_time <= existing_start or start_time >= existing_end):
+                                st.error(f"Time clash detected for {auditor} on activity '{row['Activity']}'.")
+                    else:
+                        assigned_auditors[auditor] = []
+                    
+                    assigned_auditors[auditor].append((start_time, end_time))
 
-                        # Check for time clash
-                        clash = False
-                        if assigned_auditor:
-                            for slot in st.session_state.auditor_time_slots[assigned_auditor]:
-                                if activity_start < slot[1] and activity_end > slot[0]:
-                                    clash = True
-                                    st.warning(f"Time clash detected for {assigned_auditor} on '{row['Activity']}'")
-                                    break
+            st.session_state.schedule_data = edited_schedule
 
-                            if not clash:
-                                st.session_state.auditor_time_slots[assigned_auditor].append((activity_start, activity_end))
-                                st.session_state.schedule_data.at[index, "Assigned Auditor"] = assigned_auditor
-
-                    except Exception as e:
-                        st.error(f"Error processing activity: {e}")
+            st.write(st.session_state.schedule_data)
 
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
