@@ -110,7 +110,7 @@ if app_mode == "Input Generator":
             st.success("Data saved! You can now proceed to the Schedule Generator.")
 
 
-#---------------- SCHEDULE GENERATOR ----------------
+# ---------------- SCHEDULE GENERATOR ----------------
 if app_mode == "Schedule Generator":
     st.header("Schedule Generator")
 
@@ -125,6 +125,10 @@ if app_mode == "Schedule Generator":
 
         if st.button("Generate Schedule"):
             schedule_data = []
+            start_time = datetime.strptime('09:00', '%H:%M')
+            lunch_start = datetime.strptime('13:00', '%H:%M')
+            lunch_end = datetime.strptime('13:30', '%H:%M')
+            end_time = datetime.strptime('18:00', '%H:%M')
 
             for audit in st.session_state.audit_data[selected_site]:
                 if audit["Audit Type"] == selected_audit_type:
@@ -143,16 +147,26 @@ if app_mode == "Schedule Generator":
                         assigned_auditor = st.selectbox(f"Assign Auditor for Activity: {activity}", allowed_auditors)
                         actual_time = st.number_input(f"Time Allocated for {activity} (in hours)", min_value=0.0, value=time_per_activity)
 
+                        current_end_time = start_time + timedelta(hours=actual_time)
+                        if start_time < lunch_start <= current_end_time:
+                            current_end_time += timedelta(minutes=30)
+
+                        if current_end_time > end_time:
+                            st.warning(f"Activity '{activity}' exceeds the end of the working day. Please adjust the allocated time.")
+
                         schedule_data.append([
                             audit["Audit Type"],
                             selected_site,
                             activity,
                             core_status,
                             assigned_auditor,
-                            actual_time
+                            start_time.strftime('%H:%M'),
+                            current_end_time.strftime('%H:%M')
                         ])
 
-            df = pd.DataFrame(schedule_data, columns=["Audit Type", "Site", "Activity", "Core Status", "Assigned Auditor", "Allocated Time (hours)"])
+                        start_time = current_end_time
+
+            df = pd.DataFrame(schedule_data, columns=["Audit Type", "Site", "Activity", "Core Status", "Assigned Auditor", "Start Time", "End Time"])
 
             st.write("### Generated Schedule")
             st.write(df)
