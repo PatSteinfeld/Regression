@@ -151,22 +151,32 @@ if app_mode == "Schedule Generator":
                         if start_time.strftime('%H:%M') == '13:00':  # Handle lunch break
                             start_time += timedelta(minutes=30)
 
-            st.session_state.schedule_data = pd.DataFrame(schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"])
+            st.session_state.schedule_data = pd.DataFrame(
+                schedule_data, 
+                columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"]
+            )
 
         if not st.session_state.schedule_data.empty:
-            st.write("### Editable Schedule")
+            st.write("### Editable Schedule Table")
+            st.write("Make edits directly in the table below:")
 
             edited_schedule = st.session_state.schedule_data.copy()
 
             for index, row in edited_schedule.iterrows():
                 st.write(f"### Activity {index + 1}: {row['Activity']}")
 
-                start_time_input = st.text_input(f"Start Time for Activity {index + 1}", value=row['Start Time'])
+                # Enter Start Time
+                start_time_input = st.text_input(f"Start Time for Activity {index + 1} (HH:MM)", value=row['Start Time'])
+                
                 if start_time_input:
                     try:
                         activity_start = datetime.strptime(start_time_input, '%H:%M')
-                        activity_hours = st.number_input(f"Enter Hours for '{row['Activity']}'", min_value=0.0, max_value=8.0, value=1.5, step=0.5)
+                        activity_hours = st.number_input(
+                            f"Enter Hours for '{row['Activity']}'", 
+                            min_value=0.0, max_value=8.0, value=1.5, step=0.5, key=f"hours_{index}"
+                        )
                         activity_end = activity_start + timedelta(hours=activity_hours)
+                        
                         edited_schedule.at[index, 'Start Time'] = start_time_input
                         edited_schedule.at[index, 'End Time'] = activity_end.strftime('%H:%M')
                     except ValueError:
@@ -174,30 +184,44 @@ if app_mode == "Schedule Generator":
 
                 # Ensure only coded auditors are assigned to core activities
                 allowed_auditors = row['Allowed Auditors'].split(", ")
-                assigned_auditor = st.selectbox(f"Assign Auditor for '{row['Activity']}'", options=allowed_auditors, key=f"auditor_{index}")
+                assigned_auditor = st.selectbox(
+                    f"Assign Auditor for '{row['Activity']}'",
+                    options=allowed_auditors,
+                    key=f"auditor_{index}"
+                )
                 
                 # Check for time clashes
-                if assigned_auditor in st.session_state.auditor_assignments:
-                    auditor_schedule = st.session_state.auditor_assignments[assigned_auditor]
-                    for activity_range in auditor_schedule:
-                        if (activity_start < activity_range[1] and activity_end > activity_range[0]):
-                            st.error(f"Time Clash Detected! '{assigned_auditor}' is already assigned to another activity during this period.")
-                
-                # Store auditor assignment
-                if assigned_auditor not in st.session_state.auditor_assignments:
-                    st.session_state.auditor_assignments[assigned_auditor] = []
+                if assigned_auditor:
+                    if assigned_auditor not in st.session_state.auditor_assignments:
+                        st.session_state.auditor_assignments[assigned_auditor] = []
                     
-                st.session_state.auditor_assignments[assigned_auditor].append((activity_start, activity_end))
-                
-                # Update the table
+                    clash_detected = False
+                    for activity_range in st.session_state.auditor_assignments[assigned_auditor]:
+                        if (activity_start < activity_range[1] and activity_end > activity_range[0]):
+                            st.error(f"❌ Time Clash Detected! '{assigned_auditor}' is already assigned during this period.")
+                            clash_detected = True
+                            break
+
+                    if not clash_detected:
+                        st.session_state.auditor_assignments[assigned_auditor].append((activity_start, activity_end))
+
                 edited_schedule.at[index, 'Assigned Auditor'] = assigned_auditor
-            
+
             st.session_state.schedule_data = edited_schedule
 
+            # Display the entire schedule
+            st.write("### Complete Schedule")
+            st.write(st.session_state.schedule_data)
+
+            # Download the schedule as Excel
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 st.session_state.schedule_data.to_excel(writer, sheet_name='Schedule', index=False)
-            st.download_button("Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
+            st.download_button(
+                "Download Schedule as Excel", 
+                data=output.getvalue(), 
+                file_name="Auditors_Planning_Schedule.xlsx"
+            )
 
         st.session_state.schedule_generated = True
 
