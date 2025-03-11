@@ -1,5 +1,9 @@
 import streamlit as st
 import pandas as pd
+from openpyxl import Workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.worksheet.table import Table, TableStyleInfo
+from openpyxl.worksheet.pivot import PivotTable, PivotCache, PivotField
 import json
 from datetime import datetime, timedelta
 from io import BytesIO
@@ -158,30 +162,32 @@ if app_mode == "Schedule Generator":
             schedule_df = pd.DataFrame(schedule_data)
             st.dataframe(schedule_df)
 
-            # Downloadable Excel file
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                schedule_df.to_excel(writer, index=False, sheet_name='Audit Schedule')
-
-                # Create a pivot table
-                workbook = writer.book
-                worksheet = writer.sheets['Audit Schedule']
-
-                pivot_worksheet = workbook.add_worksheet('Pivot Table')
-                pivot_table = workbook.add_pivot_table(
-                    name='PivotTable1',
-                    source_data=f"'Audit Schedule'!A1:G{len(schedule_df) + 1}",
-                    destination='A1'
-                )
-                pivot_worksheet.add_table(0, 0, len(schedule_df), 6, {'columns': schedule_df.columns.tolist()})
-
-            output.seek(0)
-
-            st.download_button(
-                label="Download Schedule as Excel",
-                data=output,
-                file_name="Audit_Schedule.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
-            st.session_state.schedule_generated = True
+# Downloadable Excel file
+output = BytesIO()
+with pd.ExcelWriter(output, engine='openpyxl') as writer:
+    schedule_df.to_excel(writer, index=False, sheet_name='Audit Schedule')
+    
+    workbook = writer.book
+    worksheet = workbook['Audit Schedule']
+    
+    # Create an Excel table
+    table = Table(displayName="AuditScheduleTable", ref=f"A1:{chr(65 + len(schedule_df.columns) - 1)}{len(schedule_df) + 1}")
+    style = TableStyleInfo(name="TableStyleMedium9", showFirstColumn=False, showLastColumn=False,
+                           showRowStripes=True, showColumnStripes=True)
+    table.tableStyleInfo = style
+    worksheet.add_table(table)
+    
+    # Adding Pivot Table
+    pivot_sheet = workbook.create_sheet("Pivot Table")
+    
+    pivot_cache = PivotCache(workbook, worksheet, f"A1:{chr(65 + len(schedule_df.columns) - 1)}{len(schedule_df) + 1}")
+    pivot_table = PivotTable(cache=pivot_cache, ref="A3")
+    pivot_sheet.add_pivot(pivot_table)
+    
+    # Adding Pivot Fields
+    pivot_table.add_row_field(0)  # 'Site'
+    pivot_table.add_row_field(1)  # 'Audit Type'
+    pivot_table.add_column_field(2)  # 'Proposed Date'
+    pivot_table.add_data_field(3)  # 'Total Hours'
+    
+output.seek(0)
