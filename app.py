@@ -177,7 +177,7 @@ if app_mode == "Schedule Generator":
             df = pd.DataFrame(st.session_state.schedule_data, columns=["Audit Type", "Site", "Activity", "Core Status", "Assigned Auditors", "Start Time", "End Time"])
 
             st.write("### Generated Schedule")
-            edited_df = st.experimental_data_editor(df, use_container_width=True)
+            edited_df = st.data_editor(df, use_container_width=True)
 
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
