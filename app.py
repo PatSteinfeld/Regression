@@ -170,6 +170,15 @@ if app_mode == "Schedule Generator":
                 selected_auditor = st.selectbox(f"Select Auditor for {row['Activity']}", allowed_auditors, key=f"auditor_{index}")
                 edited_data.at[index, 'Assigned Auditor'] = selected_auditor
 
+                new_start_time_str = st.text_input(f"Enter Start Time for {row['Activity']}", value=row['Start Time'], key=f"start_time_{index}")
+                try:
+                    new_start_time = datetime.strptime(new_start_time_str, '%H:%M')
+                    new_end_time = new_start_time + timedelta(hours=time_per_activity)
+                    edited_data.at[index, 'Start Time'] = new_start_time.strftime('%H:%M')
+                    edited_data.at[index, 'End Time'] = new_end_time.strftime('%H:%M')
+                except ValueError:
+                    pass
+
             st.write(edited_data)
 
             output = BytesIO()
