@@ -149,7 +149,17 @@ if app_mode == "Schedule Generator":
 
                         current_end_time = start_time + timedelta(hours=actual_time)
                         if start_time < lunch_start <= current_end_time:
-                            current_end_time += timedelta(minutes=30)
+                            schedule_data.append([
+                                audit["Audit Type"],
+                                selected_site,
+                                "Lunch Break",
+                                "N/A",
+                                "N/A",
+                                lunch_start.strftime('%H:%M'),
+                                lunch_end.strftime('%H:%M')
+                            ])
+                            start_time = lunch_end
+                            current_end_time = start_time + timedelta(hours=actual_time)
 
                         if current_end_time > end_time:
                             st.warning(f"Activity '{activity}' exceeds the end of the working day. Please adjust the allocated time.")
@@ -169,11 +179,11 @@ if app_mode == "Schedule Generator":
             df = pd.DataFrame(schedule_data, columns=["Audit Type", "Site", "Activity", "Core Status", "Assigned Auditor", "Start Time", "End Time"])
 
             st.write("### Generated Schedule")
-            st.write(df)
+            edited_df = st.experimental_data_editor(df, use_container_width=True)
 
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                df.to_excel(writer, sheet_name='Schedule', index=False)
+                edited_df.to_excel(writer, sheet_name='Schedule', index=False)
             st.download_button("Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
 
         st.session_state.schedule_generated = True
