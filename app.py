@@ -110,7 +110,7 @@ if app_mode == "Input Generator":
             st.success("Data saved! You can now proceed to the Schedule Generator.")
 
 
-# ---------------- SCHEDULE GENERATOR ----------------
+---------------- SCHEDULE GENERATOR ----------------
 if app_mode == "Schedule Generator":
     st.header("Schedule Generator")
 
@@ -120,20 +120,50 @@ if app_mode == "Schedule Generator":
         selected_site = st.selectbox("Select Site", list(st.session_state.audit_data.keys()))
         selected_audit_type = st.selectbox("Select Audit Type", predefined_audit_types)
 
+        auditors = st.text_area("Enter Auditors' Names (One per line)").split('\n')
+        coded_auditors = st.multiselect("Select Coded Auditors", auditors)
+
         if st.button("Generate Schedule"):
             schedule_data = []
 
             for audit in st.session_state.audit_data[selected_site]:
                 if audit["Audit Type"] == selected_audit_type:
-                    for activity, status in audit["Activities"].items():
-                        schedule_data.append([audit["Audit Type"], selected_site, activity, status, audit["Core Status"][activity], audit["Total Hours"]])
+                    total_hours = audit["Total Hours"]
+                    activities = [activity for activity, status in audit["Activities"].items() if status == "✔️"]
+                    num_activities = len(activities)
+                    time_per_activity = round(total_hours / num_activities, 2) if num_activities > 0 else 0
 
-            df = pd.DataFrame(schedule_data, columns=["Audit Type", "Site", "Activity", "Status", "Core Status", "Total Hours"])
+                    for activity in activities:
+                        core_status = audit["Core Status"][activity]
+                        if core_status == "Core":
+                            allowed_auditors = coded_auditors
+                        else:
+                            allowed_auditors = auditors
+
+                        assigned_auditor = st.selectbox(f"Assign Auditor for Activity: {activity}", allowed_auditors)
+                        actual_time = st.number_input(f"Time Allocated for {activity} (in hours)", min_value=0.0, value=time_per_activity)
+
+                        schedule_data.append([
+                            audit["Audit Type"],
+                            selected_site,
+                            activity,
+                            core_status,
+                            assigned_auditor,
+                            actual_time
+                        ])
+
+            df = pd.DataFrame(schedule_data, columns=["Audit Type", "Site", "Activity", "Core Status", "Assigned Auditor", "Allocated Time (hours)"])
+
+            st.write("### Generated Schedule")
             st.write(df)
 
-            st.download_button("Download Schedule as Excel", data=df.to_excel(BytesIO(), index=False), file_name="Schedule.xlsx")
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df.to_excel(writer, sheet_name='Schedule', index=False)
+            st.download_button("Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
 
         st.session_state.schedule_generated = True
+
 
 
 
