@@ -127,6 +127,7 @@ if app_mode == "Schedule Generator":
         if st.button("Generate Schedule"):
             schedule_data = []
             start_time = datetime.strptime('09:00', '%H:%M')
+            st.session_state.auditor_assignments = {}  # Initialize auditor assignments as empty
 
             for audit in st.session_state.audit_data[selected_site]:
                 if audit["Audit Type"] == selected_audit_type:
@@ -142,7 +143,7 @@ if app_mode == "Schedule Generator":
                             start_time.strftime('%H:%M'),
                             "",
                             "",
-                            ", ".join(allowed_auditors)  # Store allowed auditors as a comma-separated string
+                            ", ".join(allowed_auditors)
                         ])
                         
                         # Update start_time for the next activity
@@ -183,7 +184,10 @@ if app_mode == "Schedule Generator":
                             st.error(f"Time Clash Detected! '{assigned_auditor}' is already assigned to another activity during this period.")
                 
                 # Store auditor assignment
-                st.session_state.auditor_assignments.setdefault(assigned_auditor, []).append((activity_start, activity_end))
+                if assigned_auditor not in st.session_state.auditor_assignments:
+                    st.session_state.auditor_assignments[assigned_auditor] = []
+                    
+                st.session_state.auditor_assignments[assigned_auditor].append((activity_start, activity_end))
                 
                 # Update the table
                 edited_schedule.at[index, 'Assigned Auditor'] = assigned_auditor
