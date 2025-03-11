@@ -175,19 +175,14 @@ if app_mode == "Schedule Generator":
             df = pd.DataFrame(st.session_state.schedule_data, columns=["Audit Type", "Site", "Activity", "Core Status", "Assigned Auditors", "Start Time", "End Time"])
 
             st.write("### Generated Schedule")
-            edited_df = st.data_editor(
-                df,
-                use_container_width=True,
-                column_config={
-                    "Assigned Auditors": st.column_config.Selectbox(options=auditors),
-                    "Start Time": st.column_config.TextInput(),
-                    "End Time": st.column_config.TextInput()
-                }
-            )
+            for index, row in df.iterrows():
+                row["Assigned Auditors"] = st.selectbox(f"Select Auditor for {row['Activity']}", auditors, key=f"auditor_{index}")
+                row["Start Time"] = st.text_input(f"Start Time for {row['Activity']}", row["Start Time"], key=f"start_{index}")
+                row["End Time"] = st.text_input(f"End Time for {row['Activity']}", row["End Time"], key=f"end_{index}")
 
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                edited_df.to_excel(writer, sheet_name='Schedule', index=False)
+                df.to_excel(writer, sheet_name='Schedule', index=False)
             st.download_button("Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
 
         st.session_state.schedule_generated = True
