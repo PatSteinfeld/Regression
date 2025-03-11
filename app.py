@@ -146,8 +146,6 @@ if app_mode == "Schedule Generator":
                         else:
                             allowed_auditors = auditors
 
-                        assigned_auditors = st.session_state.auditor_assignments.get(activity, [])
-
                         current_end_time = start_time + timedelta(hours=time_per_activity)
                         if start_time < lunch_start <= current_end_time:
                             st.session_state.schedule_data.append([
@@ -167,7 +165,7 @@ if app_mode == "Schedule Generator":
                             selected_site,
                             activity,
                             core_status,
-                            ', '.join(assigned_auditors),
+                            '',
                             start_time.strftime('%H:%M'),
                             current_end_time.strftime('%H:%M')
                         ])
@@ -177,7 +175,15 @@ if app_mode == "Schedule Generator":
             df = pd.DataFrame(st.session_state.schedule_data, columns=["Audit Type", "Site", "Activity", "Core Status", "Assigned Auditors", "Start Time", "End Time"])
 
             st.write("### Generated Schedule")
-            edited_df = st.data_editor(df, use_container_width=True)
+            edited_df = st.data_editor(
+                df,
+                use_container_width=True,
+                column_config={
+                    "Assigned Auditors": st.column_config.Selectbox(options=auditors),
+                    "Start Time": st.column_config.TextInput(),
+                    "End Time": st.column_config.TextInput()
+                }
+            )
 
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
