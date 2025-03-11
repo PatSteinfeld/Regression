@@ -124,58 +124,82 @@ if app_mode == "Schedule Generator":
         auditors = st.text_area("Enter Auditors' Names (One per line)").split('\n')
         coded_auditors = st.multiselect("Select Coded Auditors", auditors)
 
-        start_time_str = st.text_input("Enter Start Time (HH:MM)", "09:00")
-        start_time = datetime.strptime(start_time_str, '%H:%M')
-        lunch_start = datetime.strptime('13:00', '%H:%M')
-        lunch_end = datetime.strptime('13:30', '%H:%M')
-        end_time = datetime.strptime('18:00', '%H:%M')
-
         if st.button("Generate Schedule"):
             schedule_data = []
+            start_time = st.text_input("Enter Start Time (HH:MM)", value="09:00")
+
+            try:
+                current_time = datetime.strptime(start_time, '%H:%M')
+            except ValueError:
+                st.error("Invalid start time format! Please enter time in HH:MM format.")
+                current_time = datetime.strptime("09:00", '%H:%M')
 
             for audit in st.session_state.audit_data[selected_site]:
                 if audit["Audit Type"] == selected_audit_type:
                     activities = [activity for activity, status in audit["Activities"].items() if status == "✔️"]
 
                     for activity in activities:
-                        core_status = audit["Core Status"][activity]
+                        core_status = audit["Core Status"].get(activity, "Non-Core")
                         allowed_auditors = coded_auditors if core_status == "Core" else auditors
-
-                        activity_hours = st.number_input(f"Enter Hours for '{activity}'", min_value=0.0, max_value=8.0, value=1.0, step=0.5)
-                        current_end_time = start_time + timedelta(hours=activity_hours)
-
-                        if start_time < lunch_start <= current_end_time:
-                            schedule_data.append(["Lunch Break", "N/A", lunch_start.strftime('%H:%M'), lunch_end.strftime('%H:%M'), "N/A"])
-                            start_time = lunch_end
-                            current_end_time = start_time + timedelta(hours=activity_hours)
-
-                        selected_auditor = st.selectbox(f"Select Auditor for '{activity}'", allowed_auditors, key=activity)
-
-                        schedule_data.append([
-                            activity,
-                            core_status,
-                            start_time.strftime('%H:%M'),
-                            current_end_time.strftime('%H:%M'),
-                            selected_auditor
-                        ])
-
-                        start_time = current_end_time
-                        if start_time >= end_time:
-                            break
-
-            st.session_state.schedule_data = pd.DataFrame(schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor"])
-
+                        
+                        schedule_data.append({
+                            "Activity": activity,
+                            "Core Status": core_status,
+                            "Start Time": current_time.strftime('%H:%M'),
+                            "End Time": "",
+                            "Assigned Auditor": ""
+                        })
+                        
+                        current_time += timedelta(minutes=90)  # Default activity duration: 1.5 hours
+                        
+                        if current_time.strftime('%H:%M') == '13:00':  # Lunch Break Handling
+                            current_time += timedelta(minutes=30)
+            
+            st.session_state.schedule_data = pd.DataFrame(schedule_data)
+        
         if not st.session_state.schedule_data.empty:
             st.write("### Editable Schedule")
-            edited_schedule = st.experimental_data_editor(st.session_state.schedule_data, use_container_width=True)
-            st.session_state.schedule_data = edited_schedule
+            schedule_df = st.session_state.schedule_data.copy()
+            
+            for index, row in schedule_df.iterrows():
+                st.write(f"### Activity {index + 1}: {row['Activity']}")
+                
+                # Time Input
+                start_time_input = st.text_input(f"Enter Start Time for Activity {index + 1}", value=row["Start Time"])
+                try:
+                    activity_start = datetime.strptime(start_time_input, '%H:%M')
+                except ValueError:
+                    st.error("Invalid time format! Using the previous start time.")
+                    activity_start = datetime.strptime(row["Start Time"], '%H:%M')
+                
+                activity_duration = st.number_input(f"Enter Hours for '{row['Activity']}'", min_value=0.0, max_value=8.0, value=1.5, step=0.5)
+                activity_end = activity_start + timedelta(hours=activity_duration)
+                
+                # Store updated values
+                schedule_df.at[index, "Start Time"] = activity_start.strftime('%H:%M')
+                schedule_df.at[index, "End Time"] = activity_end.strftime('%H:%M')
 
+                # Auditor Assignment
+                assigned_auditor = st.selectbox(
+                    f"Select Auditor for Activity {index + 1}",
+                    auditors,
+                    key=f"auditor_{index}"
+                )
+                
+                if schedule_df.at[index, "Core Status"] == "Core" and assigned_auditor not in coded_auditors:
+                    st.warning(f"Only Coded Auditors are allowed for Core Activity '{row['Activity']}'")
+                
+                schedule_df.at[index, "Assigned Auditor"] = assigned_auditor
+            
+            # Save updated schedule
+            st.session_state.schedule_data = schedule_df
+            
+            # Display and Download
+            st.write(schedule_df)
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                st.session_state.schedule_data.to_excel(writer, sheet_name='Schedule', index=False)
+                schedule_df.to_excel(writer, sheet_name='Schedule', index=False)
             st.download_button("Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
-
-        st.session_state.schedule_generated = True
 
 
 
