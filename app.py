@@ -131,6 +131,9 @@ if app_mode == "Schedule Generator":
             lunch_end = datetime.strptime('13:30', '%H:%M')
             end_time = datetime.strptime('18:00', '%H:%M')
 
+            if "auditor_assignments" not in st.session_state:
+                st.session_state.auditor_assignments = {}
+
             for audit in st.session_state.audit_data[selected_site]:
                 if audit["Audit Type"] == selected_audit_type:
                     total_hours = audit["Total Hours"]
@@ -187,7 +190,7 @@ if app_mode == "Schedule Generator":
             df = pd.DataFrame(schedule_data, columns=["Audit Type", "Site", "Activity", "Core Status", "Assigned Auditors", "Start Time", "End Time"])
 
             st.write("### Generated Schedule")
-            edited_df = st.data_editor(df, use_container_width=True)
+            edited_df = st.experimental_data_editor(df, use_container_width=True)
 
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
