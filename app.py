@@ -145,7 +145,7 @@ if app_mode == "Schedule Generator":
                         else:
                             allowed_auditors = auditors
 
-                        assigned_auditor = st.selectbox(f"Assign Auditor for Activity: {activity}", allowed_auditors)
+                        assigned_auditors = st.multiselect(f"Assign Auditors for Activity: {activity}", allowed_auditors)
                         actual_time = st.number_input(f"Time Allocated for {activity} (in hours)", min_value=0.0, value=time_per_activity)
 
                         current_end_time = start_time + timedelta(hours=actual_time)
@@ -170,14 +170,14 @@ if app_mode == "Schedule Generator":
                             selected_site,
                             activity,
                             core_status,
-                            assigned_auditor,
+                            ', '.join(assigned_auditors),
                             start_time.strftime('%H:%M'),
                             current_end_time.strftime('%H:%M')
                         ])
 
                         start_time = current_end_time
 
-            df = pd.DataFrame(schedule_data, columns=["Audit Type", "Site", "Activity", "Core Status", "Assigned Auditor", "Start Time", "End Time"])
+            df = pd.DataFrame(schedule_data, columns=["Audit Type", "Site", "Activity", "Core Status", "Assigned Auditors", "Start Time", "End Time"])
 
             st.write("### Generated Schedule")
             edited_df = st.data_editor(df, use_container_width=True)
@@ -188,7 +188,6 @@ if app_mode == "Schedule Generator":
             st.download_button("Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
 
         st.session_state.schedule_generated = True
-
 
 
 
