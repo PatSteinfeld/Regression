@@ -21,6 +21,13 @@ if "schedule_generated" not in st.session_state:
 if "activity_status" not in st.session_state:
     st.session_state.activity_status = {}
 
+if "auditor_assignments" not in st.session_state:
+    st.session_state.auditor_assignments = {}
+
+if "schedule_data" not in st.session_state:
+    st.session_state.schedule_data = pd.DataFrame()
+
+
 # Predefined Activities
 common_activities = {
     "Meeting & Management": [
@@ -43,71 +50,6 @@ common_activities = {
 
 # Predefined Audit Types
 predefined_audit_types = ["IA", "P1", "P2", "P3", "P4", "P5", "RC"]
-
-# ---------------- INPUT GENERATOR ----------------
-if app_mode == "Input Generator":
-    st.header("Auditors Planning Schedule Input Generator")
-
-    if st.session_state.schedule_generated:
-        st.warning("Schedule has been generated. Editing is locked.")
-    else:
-        st.subheader("Step 1: Define Sites and Activities")
-        num_sites = st.number_input("How many sites do you want to add?", min_value=1, step=1, value=1)
-
-        site_activity_data = {}
-
-        for s in range(num_sites):
-            site = st.text_input(f"Enter Site Name {s+1}", key=f"site_{s}")
-            if site:
-                site_activity_data[site] = {}
-                st.session_state.activity_status[site] = {}
-
-                for category, activities in common_activities.items():
-                    st.markdown(f"### {category} for {site}")
-                    for activity in activities:
-                        is_core = st.checkbox(f"Mark '{activity}' as Core", key=f"core_{site}_{activity}")
-                        site_activity_data[site][activity] = "Core" if is_core else "Non-Core"
-                        st.session_state.activity_status[site][activity] = "Available"
-
-        site_audit_data = {}
-
-        st.subheader("Step 2: Add Audits for Each Site")
-
-        for site in site_activity_data.keys():
-            st.markdown(f"## Site: {site}")
-
-            audit_data = []
-            num_audits = st.number_input(f"How many audits for {site}?", min_value=1, step=1, value=1, key=f"num_audits_{site}")
-
-            for i in range(num_audits):
-                st.markdown(f"### Audit {i+1} for {site}")
-                audit_type = st.selectbox(f"Select Audit Type {i+1}", predefined_audit_types, key=f"audit_type_{site}_{i}")
-                proposed_date = st.date_input(f"Proposed Date {i+1}", key=f"date_{site}_{i}")
-                mandays = st.number_input(f"Mandays {i+1}", min_value=1, step=1, key=f"mandays_{site}_{i}")
-
-                available_activities = {activity: status for activity, status in st.session_state.activity_status[site].items() if status == "Available"}
-                selected_activities = {activity: st.checkbox(activity, key=f"{activity}_{site}_{i}") for activity in available_activities.keys()}
-
-                for activity, selected in selected_activities.items():
-                    if selected:
-                        st.session_state.activity_status[site][activity] = "Selected"
-
-                audit_entry = {
-                    "Audit Type": audit_type,
-                    "Proposed Date": proposed_date.strftime("%Y-%m-%d"),
-                    "Mandays": mandays,
-                    "Total Hours": mandays * 8,
-                    "Activities": {activity: "✔️" if selected else "✖️" for activity, selected in selected_activities.items()},
-                    "Core Status": {activity: site_activity_data[site][activity] for activity in selected_activities}
-                }
-
-                audit_data.append(audit_entry)
-
-            site_audit_data[site] = audit_data
-
-        if st.button("Save Data for Scheduling"):
-            st.session_state.audit_data = site_audit_data
-            st.success("Data saved! You can now proceed to the Schedule Generator.")
 
 
 # ---------------- SCHEDULE GENERATOR ----------------
@@ -154,7 +96,7 @@ if app_mode == "Schedule Generator":
                             core_status,
                             start_time.strftime('%H:%M'),
                             current_end_time.strftime('%H:%M'),
-                            ""
+                            allowed_auditors[0] if allowed_auditors else ""
                         ])
 
                         start_time = current_end_time
@@ -162,9 +104,14 @@ if app_mode == "Schedule Generator":
             st.session_state.schedule_data = pd.DataFrame(schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor"])
 
         if not st.session_state.schedule_data.empty:
-            edited_data = st.experimental_data_editor(st.session_state.schedule_data, num_rows="dynamic")
-
             st.write("### Editable Schedule")
+            edited_data = st.session_state.schedule_data.copy()
+
+            for index, row in edited_data.iterrows():
+                allowed_auditors = coded_auditors if row['Core Status'] == 'Core' else auditors
+                selected_auditor = st.selectbox(f"Select Auditor for {row['Activity']}", allowed_auditors, key=f"auditor_{index}")
+                edited_data.at[index, 'Assigned Auditor'] = selected_auditor
+
             st.write(edited_data)
 
             output = BytesIO()
@@ -173,6 +120,7 @@ if app_mode == "Schedule Generator":
             st.download_button("Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
 
         st.session_state.schedule_generated = True
+
 
 
 
