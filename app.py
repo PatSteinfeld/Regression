@@ -130,10 +130,7 @@ if app_mode == "Schedule Generator":
         end_time = datetime.strptime('18:00', '%H:%M')
 
         if st.button("Generate Schedule"):
-            schedule_data = []
-
-            if "auditor_assignments" not in st.session_state:
-                st.session_state.auditor_assignments = {}
+            st.session_state.schedule_data = []
 
             for audit in st.session_state.audit_data[selected_site]:
                 if audit["Audit Type"] == selected_audit_type:
@@ -149,20 +146,11 @@ if app_mode == "Schedule Generator":
                         else:
                             allowed_auditors = auditors
 
-                        if activity not in st.session_state.auditor_assignments:
-                            st.session_state.auditor_assignments[activity] = []
+                        assigned_auditors = st.session_state.auditor_assignments.get(activity, [])
 
-                        assigned_auditors = st.multiselect(f"Assign Auditors for Activity: {activity}", allowed_auditors,
-                                                         key=f"auditors_{activity}",
-                                                         default=st.session_state.auditor_assignments.get(activity, []))
-
-                        st.session_state.auditor_assignments[activity] = assigned_auditors
-
-                        actual_time = st.number_input(f"Time Allocated for {activity} (in hours)", min_value=0.0, value=time_per_activity)
-
-                        current_end_time = start_time + timedelta(hours=actual_time)
+                        current_end_time = start_time + timedelta(hours=time_per_activity)
                         if start_time < lunch_start <= current_end_time:
-                            schedule_data.append([
+                            st.session_state.schedule_data.append([
                                 audit["Audit Type"],
                                 selected_site,
                                 "Lunch Break",
@@ -172,12 +160,9 @@ if app_mode == "Schedule Generator":
                                 lunch_end.strftime('%H:%M')
                             ])
                             start_time = lunch_end
-                            current_end_time = start_time + timedelta(hours=actual_time)
+                            current_end_time = start_time + timedelta(hours=time_per_activity)
 
-                        if current_end_time > end_time:
-                            st.warning(f"Activity '{activity}' exceeds the end of the working day. Please adjust the allocated time.")
-
-                        schedule_data.append([
+                        st.session_state.schedule_data.append([
                             audit["Audit Type"],
                             selected_site,
                             activity,
@@ -189,10 +174,10 @@ if app_mode == "Schedule Generator":
 
                         start_time = current_end_time
 
-            df = pd.DataFrame(schedule_data, columns=["Audit Type", "Site", "Activity", "Core Status", "Assigned Auditors", "Start Time", "End Time"])
+            df = pd.DataFrame(st.session_state.schedule_data, columns=["Audit Type", "Site", "Activity", "Core Status", "Assigned Auditors", "Start Time", "End Time"])
 
             st.write("### Generated Schedule")
-            edited_df = st.data_editor(df, use_container_width=True)
+            edited_df = st.experimental_data_editor(df, use_container_width=True)
 
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
