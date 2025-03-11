@@ -137,8 +137,10 @@ if app_mode == "Schedule Generator":
                     total_hours = audit["Total Hours"]
                     activities = [activity for activity, status in audit["Activities"].items() if status == "✔️"]
                     num_activities = len(activities)
+
                     if num_activities > 0:
                         time_per_activity = round(total_hours / num_activities, 2)
+                        st.session_state.time_per_activity = time_per_activity  # Store in session state
 
                         for activity in activities:
                             core_status = audit["Core Status"][activity]
@@ -174,7 +176,7 @@ if app_mode == "Schedule Generator":
                 new_start_time_str = st.text_input(f"Enter Start Time for {row['Activity']}", value=row['Start Time'], key=f"start_time_{index}")
                 try:
                     new_start_time = datetime.strptime(new_start_time_str, '%H:%M')
-                    new_end_time = new_start_time + timedelta(hours=time_per_activity)
+                    new_end_time = new_start_time + timedelta(hours=st.session_state.time_per_activity)
                     edited_data.at[index, 'Start Time'] = new_start_time.strftime('%H:%M')
                     edited_data.at[index, 'End Time'] = new_end_time.strftime('%H:%M')
                 except ValueError:
@@ -188,6 +190,7 @@ if app_mode == "Schedule Generator":
             st.download_button("Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
 
         st.session_state.schedule_generated = True
+
 
 
 
