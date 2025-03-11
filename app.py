@@ -3,7 +3,7 @@ import pandas as pd
 from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.worksheet.table import Table, TableStyleInfo
-from openpyxl.worksheet.pivot import PivotTable, PivotCache, PivotField
+
 import json
 from datetime import datetime, timedelta
 from io import BytesIO
@@ -170,24 +170,16 @@ with pd.ExcelWriter(output, engine='openpyxl') as writer:
     workbook = writer.book
     worksheet = workbook['Audit Schedule']
     
-    # Create an Excel table
+    # Create an Excel Table
     table = Table(displayName="AuditScheduleTable", ref=f"A1:{chr(65 + len(schedule_df.columns) - 1)}{len(schedule_df) + 1}")
-    style = TableStyleInfo(name="TableStyleMedium9", showFirstColumn=False, showLastColumn=False,
-                           showRowStripes=True, showColumnStripes=True)
+    style = TableStyleInfo(
+        name="TableStyleMedium9",
+        showFirstColumn=False,
+        showLastColumn=False,
+        showRowStripes=True,
+        showColumnStripes=True
+    )
     table.tableStyleInfo = style
     worksheet.add_table(table)
-    
-    # Adding Pivot Table
-    pivot_sheet = workbook.create_sheet("Pivot Table")
-    
-    pivot_cache = PivotCache(workbook, worksheet, f"A1:{chr(65 + len(schedule_df.columns) - 1)}{len(schedule_df) + 1}")
-    pivot_table = PivotTable(cache=pivot_cache, ref="A3")
-    pivot_sheet.add_pivot(pivot_table)
-    
-    # Adding Pivot Fields
-    pivot_table.add_row_field(0)  # 'Site'
-    pivot_table.add_row_field(1)  # 'Audit Type'
-    pivot_table.add_column_field(2)  # 'Proposed Date'
-    pivot_table.add_data_field(3)  # 'Total Hours'
     
 output.seek(0)
