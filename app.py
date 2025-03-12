@@ -3,6 +3,8 @@ import pandas as pd
 import json
 from datetime import datetime, timedelta
 from io import BytesIO
+import uuid
+
 
 
 # Streamlit App Title
@@ -187,8 +189,13 @@ if app_mode == "Schedule Generator":
                         st.warning("Invalid time format. Please use HH:MM.")
 
                 # Ensure only coded auditors are assigned to core activities
+                
+
+                unique_id = str(uuid.uuid4())[:8]  # Generate a short unique ID
+                
                 auditors = st.text_area(f"Enter Auditors' Names for {selected_site} ({selected_audit_type})", 
-                        key=f"auditors_input_{selected_site}_{selected_audit_type}").split('\n')
+                                        key=f"auditors_input_{selected_site}_{selected_audit_type}_{unique_id}").split('\n')
+
 
                 assigned_auditor = st.selectbox(f"Assign Auditor for '{row['Activity']}'", options=auditors, key=f"auditor_{index}")
 
