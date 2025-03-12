@@ -128,86 +128,75 @@ if "schedule_generated" not in st.session_state:
 if "auditor_selection" not in st.session_state:
     st.session_state.auditor_selection = {}
 
-if app_mode == "Schedule Generator":
-    st.header("Schedule Generator")
+st.title("Audit Schedule Generator")
 
-    if not st.session_state.audit_data:
-        st.warning("No data available. Please use the Input Generator to add data.")
-    else:
-        selected_site = st.selectbox("Select Site", list(st.session_state.audit_data.keys()))
-        selected_audit_type = st.selectbox("Select Audit Type", predefined_audit_types)
+# Input auditors
+st.session_state.auditors = st.text_area("Enter Auditors' Names (One per line)", key="auditors_input").split('\n')
+coded_auditors = st.multiselect("Select Coded Auditors", st.session_state.auditors)
 
-        st.session_state.auditors = st.text_area("Enter Auditors' Names (One per line)", key="auditors_input").split('\n')
-        coded_auditors = st.multiselect("Select Coded Auditors", st.session_state.auditors)
+if st.button("Generate Schedule"):
+    schedule_data = []
+    start_time = datetime.strptime('09:00', '%H:%M')
 
-        if st.button("Generate Schedule"):
-            schedule_data = []
-            start_time = datetime.strptime('09:00', '%H:%M')
-            st.session_state.auditor_assignments = {}  # Initialize auditor assignments as empty
-            
-            for audit in st.session_state.audit_data[selected_site]:
-                if audit["Audit Type"] == selected_audit_type:
-                    activities = [activity for activity, status in audit["Activities"].items() if status == "✔️"]
+    for i in range(5):  # Example with 5 activities
+        activity_name = f"Activity {i+1}"
+        core_status = "Core" if i % 2 == 0 else "Non-Core"
+        allowed_auditors = coded_auditors if core_status == "Core" else st.session_state.auditors
+        assigned_auditor = allowed_auditors[0] if allowed_auditors else "No Auditor"
 
-                    auditor_workload = {auditor: 0 for auditor in st.session_state.auditors}  # Track workload
-                    
-                    for activity in activities:
-                        core_status = audit["Core Status"][activity]
-                        allowed_auditors = coded_auditors if core_status == "Core" else st.session_state.auditors
-                        
-                        assigned_auditor = min(allowed_auditors, key=lambda a: auditor_workload[a]) if allowed_auditors else "No Eligible Auditor"
-                        auditor_workload[assigned_auditor] += 1 if assigned_auditor in auditor_workload else 0
-                    
-                        schedule_data.append([
-                            activity,
-                            core_status,
-                            start_time.strftime('%H:%M'),
-                            (start_time + timedelta(minutes=90)).strftime('%H:%M'),
-                            assigned_auditor
-                        ])
-                    
-                        start_time += timedelta(minutes=90)
-                        if start_time.strftime('%H:%M') == '13:00':  # Handle lunch break
-                            start_time += timedelta(minutes=30)
+        schedule_data.append([
+            activity_name,
+            core_status,
+            start_time.strftime('%H:%M'),
+            (start_time + timedelta(minutes=90)).strftime('%H:%M'),
+            assigned_auditor
+        ])
 
-            st.session_state.schedule_data = pd.DataFrame(schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor"])
-            st.session_state.auditor_selection = {i: "None" for i in range(len(schedule_data))}
+        start_time += timedelta(minutes=90)
+        if start_time.strftime('%H:%M') == '13:00':  # Lunch break
+            start_time += timedelta(minutes=30)
 
-        if not st.session_state.schedule_data.empty:
-            st.write("### Editable Schedule")
-            edited_schedule = st.session_state.schedule_data.copy()
-            
-            for index, row in edited_schedule.iterrows():
-                st.write(f"### Activity {index + 1}: {row['Activity']}")
+    st.session_state.schedule_data = pd.DataFrame(schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor"])
+    st.session_state.auditor_selection = {i: "None" for i in range(len(schedule_data))}
 
-                start_time_input = st.text_input(f"Start Time for Activity {index + 1}", value=row['Start Time'])
-                if start_time_input:
-                    try:
-                        activity_start = datetime.strptime(start_time_input, '%H:%M')
-                        activity_hours = st.number_input(f"Enter Hours for '{row['Activity']}'", min_value=0.5, max_value=8.0, value=1.5, step=0.5)
-                        activity_end = activity_start + timedelta(hours=activity_hours)
-                        edited_schedule.at[index, 'Start Time'] = start_time_input
-                        edited_schedule.at[index, 'End Time'] = activity_end.strftime('%H:%M')
-                    except ValueError:
-                        st.warning("Invalid time format. Please use HH:MM.")
+if not st.session_state.schedule_data.empty:
+    st.write("### Editable Schedule")
+    edited_schedule = st.session_state.schedule_data.copy()
 
-                assigned_auditor = st.selectbox(f"Assign Auditor for '{row['Activity']}'", 
-                                                options=["None"] + st.session_state.auditors, 
-                                                index=(st.session_state.auditors.index(st.session_state.auditor_selection.get(index, "None")) + 1 if st.session_state.auditor_selection.get(index, "None") != "None" else 0),
-                                                key=f"auditor_{index}")
-                
-                if assigned_auditor != "None":
-                    st.session_state.auditor_selection[index] = assigned_auditor
-                    edited_schedule.at[index, 'Assigned Auditor'] = assigned_auditor
-                else:
-                    st.session_state.auditor_selection[index] = "None"
-                
-            st.session_state.schedule_data = edited_schedule
+    for index, row in edited_schedule.iterrows():
+        st.write(f"### {row['Activity']}")
 
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                st.session_state.schedule_data.to_excel(writer, sheet_name='Schedule', index=False)
-            st.download_button("Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
+        start_time_input = st.text_input(f"Start Time for {row['Activity']}", value=row['Start Time'])
+        if start_time_input:
+            try:
+                activity_start = datetime.strptime(start_time_input, '%H:%M')
+                activity_hours = st.number_input(f"Enter Hours for '{row['Activity']}'", min_value=0.5, max_value=8.0, value=1.5, step=0.5)
+                activity_end = activity_start + timedelta(hours=activity_hours)
+                edited_schedule.at[index, 'Start Time'] = start_time_input
+                edited_schedule.at[index, 'End Time'] = activity_end.strftime('%H:%M')
+            except ValueError:
+                st.warning("Invalid time format. Please use HH:MM.")
 
-        st.session_state.schedule_generated = True
+        assigned_auditor = st.selectbox(f"Assign Auditor for '{row['Activity']}'", 
+                                        options=["None"] + st.session_state.auditors, 
+                                        index=(st.session_state.auditors.index(st.session_state.auditor_selection.get(index, "None")) + 1 if st.session_state.auditor_selection.get(index, "None") != "None" else 0),
+                                        key=f"auditor_{index}")
+        
+        if assigned_auditor != "None":
+            st.session_state.auditor_selection[index] = assigned_auditor
+            edited_schedule.at[index, 'Assigned Auditor'] = assigned_auditor
+        else:
+            st.session_state.auditor_selection[index] = "None"
+    
+    st.session_state.schedule_data = edited_schedule
+
+    # Display the final table
+    st.write("### Final Schedule Table")
+    st.dataframe(st.session_state.schedule_data)
+
+    # Download as Excel
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        st.session_state.schedule_data.to_excel(writer, sheet_name='Schedule', index=False)
+    st.download_button("Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
 
