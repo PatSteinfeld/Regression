@@ -198,17 +198,6 @@ if app_mode == "Schedule Generator":
                 
                 if assigned_auditor != "None":
                     st.session_state.auditor_selection[index] = assigned_auditor
-                    if assigned_auditor in st.session_state.auditor_assignments:
-                        auditor_schedule = st.session_state.auditor_assignments[assigned_auditor]
-                        for activity_range in auditor_schedule:
-                            if activity_range and (activity_start < activity_range[1] and activity_end > activity_range[0]):
-                                st.error(f"Time Clash Detected! '{assigned_auditor}' is already assigned to another activity during this period.")
-                                break
-
-                    if assigned_auditor not in st.session_state.auditor_assignments:
-                        st.session_state.auditor_assignments[assigned_auditor] = []
-                    
-                    st.session_state.auditor_assignments[assigned_auditor].append((activity_start, activity_end))
                     edited_schedule.at[index, 'Assigned Auditor'] = assigned_auditor
                 else:
                     st.session_state.auditor_selection[index] = "None"
