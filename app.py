@@ -139,6 +139,10 @@ if st.button("Generate Schedule"):
     start_time = datetime.strptime('09:00', '%H:%M')
 
     for i in range(5):  # Example with 5 activities
+        if start_time.strftime('%H:%M') == '13:00':  # Lunch break
+            schedule_data.append(["Lunch Break", "N/A", "13:00", "13:30", "N/A"])
+            start_time += timedelta(minutes=30)
+
         activity_name = f"Activity {i+1}"
         core_status = "Core" if i % 2 == 0 else "Non-Core"
         allowed_auditors = coded_auditors if core_status == "Core" else st.session_state.auditors
@@ -153,7 +157,7 @@ if st.button("Generate Schedule"):
         ])
 
         start_time += timedelta(minutes=90)
-        if start_time.strftime('%H:%M') == '13:00':  # Lunch break
+        if start_time.strftime('%H:%M') == '13:00':  # Ensure lunch break is accounted for
             start_time += timedelta(minutes=30)
 
     st.session_state.schedule_data = pd.DataFrame(schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor"])
@@ -164,6 +168,9 @@ if not st.session_state.schedule_data.empty:
     edited_schedule = st.session_state.schedule_data.copy()
 
     for index, row in edited_schedule.iterrows():
+        if row["Activity"] == "Lunch Break":
+            continue  # Skip editing lunch break
+
         st.write(f"### {row['Activity']}")
 
         start_time_input = st.text_input(f"Start Time for {row['Activity']}", value=row['Start Time'])
@@ -199,4 +206,3 @@ if not st.session_state.schedule_data.empty:
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         st.session_state.schedule_data.to_excel(writer, sheet_name='Schedule', index=False)
     st.download_button("Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
-
