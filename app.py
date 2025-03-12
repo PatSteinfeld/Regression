@@ -116,7 +116,6 @@ if app_mode == "Input Generator":
             st.success("Data saved! You can now proceed to the Schedule Generator.")
 
 
-
 # ---------------- SCHEDULE GENERATOR ----------------
 if "schedule_data" not in st.session_state:
     st.session_state.schedule_data = pd.DataFrame()
@@ -202,8 +201,9 @@ if app_mode == "Schedule Generator":
                     if assigned_auditor in st.session_state.auditor_assignments:
                         auditor_schedule = st.session_state.auditor_assignments[assigned_auditor]
                         for activity_range in auditor_schedule:
-                            if (activity_start < activity_range[1] and activity_end > activity_range[0]):
+                            if activity_range and (activity_start < activity_range[1] and activity_end > activity_range[0]):
                                 st.error(f"Time Clash Detected! '{assigned_auditor}' is already assigned to another activity during this period.")
+                                break
 
                     if assigned_auditor not in st.session_state.auditor_assignments:
                         st.session_state.auditor_assignments[assigned_auditor] = []
