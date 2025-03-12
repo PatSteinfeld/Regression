@@ -138,13 +138,14 @@ if st.button("Generate Schedule"):
     schedule_data = []
     start_time = datetime.strptime('09:00', '%H:%M')
 
-    for i in range(5):  # Example with 5 activities
+    activity_list = ["Opening Meeting", "Document Review", "Site Inspection", "Management Interview", "Closing Meeting"]
+    
+    for activity_name in activity_list:
         if start_time.strftime('%H:%M') == '13:00':  # Lunch break
             schedule_data.append(["Lunch Break", "N/A", "13:00", "13:30", "N/A"])
             start_time += timedelta(minutes=30)
 
-        activity_name = f"Activity {i+1}"
-        core_status = "Core" if i % 2 == 0 else "Non-Core"
+        core_status = "Core" if "Meeting" in activity_name else "Non-Core"
         allowed_auditors = coded_auditors if core_status == "Core" else st.session_state.auditors
         assigned_auditor = allowed_auditors[0] if allowed_auditors else "No Auditor"
 
