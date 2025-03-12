@@ -134,23 +134,33 @@ if app_mode == "Schedule Generator":
                 if audit["Audit Type"] == selected_audit_type:
                     activities = [activity for activity, status in audit["Activities"].items() if status == "✔️"]
 
-                    for activity in activities:
-                        core_status = audit["Core Status"][activity]
-                        allowed_auditors = coded_auditors if core_status == "Core" else auditors
+# Track auditor workload
+auditor_workload = {auditor: 0 for auditor in auditors}
 
-                        schedule_data.append([
-                            activity,
-                            core_status,
-                            start_time.strftime('%H:%M'),
-                            "",
-                            "",
-                            ", ".join(allowed_auditors)
-                        ])
-                        
-                        # Update start_time for the next activity
-                        start_time += timedelta(minutes=90)
-                        if start_time.strftime('%H:%M') == '13:00':  # Handle lunch break
-                            start_time += timedelta(minutes=30)
+for activity in activities:
+    core_status = audit["Core Status"][activity]
+    allowed_auditors = coded_auditors if core_status == "Core" else auditors
+
+    if allowed_auditors:
+        # Select the auditor with the least workload
+        assigned_auditor = min(allowed_auditors, key=lambda a: auditor_workload[a])
+        auditor_workload[assigned_auditor] += 1  # Update workload
+    else:
+        assigned_auditor = "No Eligible Auditor"
+
+    schedule_data.append([
+        activity,
+        core_status,
+        start_time.strftime('%H:%M'),
+        (start_time + timedelta(minutes=90)).strftime('%H:%M'),
+        assigned_auditor
+    ])
+
+    # Update start_time for the next activity
+    start_time += timedelta(minutes=90)
+    if start_time.strftime('%H:%M') == '13:00':  # Handle lunch break
+        start_time += timedelta(minutes=30)
+
 
             st.session_state.schedule_data = pd.DataFrame(schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"])
 
