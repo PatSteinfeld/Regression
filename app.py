@@ -165,7 +165,7 @@ if app_mode == "Schedule Generator":
                             start_time += timedelta(minutes=30)
 
 
-            st.session_state.schedule_data = pd.DataFrame(schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"])
+            st.session_state.schedule_data = pd.DataFrame(schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor"])
 
         if not st.session_state.schedule_data.empty:
             st.write("### Editable Schedule")
