@@ -1,209 +1,239 @@
 import streamlit as st
 import pandas as pd
-import json
-from datetime import datetime, timedelta
 from io import BytesIO
-import uuid
+import hmac
 
+def main():
+    def check_password():
+        """Returns `True` if the user had a correct password."""
+        def login_form():
+            with st.form("Credentials"):
+                st.text_input("Username", key="username")
+                st.text_input("Password", type="password", key="password")
+                st.form_submit_button("Log in", on_click=password_entered)
 
+        def password_entered():
+            if (
+                st.session_state["username"] in st.secrets["passwords"]
+                and hmac.compare_digest(
+                    st.session_state["password"],
+                    st.secrets.passwords[st.session_state["username"]],
+                )
+            ):
+                st.session_state["password_correct"] = True
+                del st.session_state["password"]
+                del st.session_state["username"]
+            else:
+                st.session_state["password_correct"] = False
 
-# Streamlit App Title
-st.title("Auditors Planning Schedule")
+        if st.session_state.get("password_correct", False):
+            return True
 
-# Sidebar Navigation
-st.sidebar.title("Navigation")
-app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
+        login_form()
+        if "password_correct" in st.session_state:
+            st.error("\ud83d\ude15 User not known or password incorrect")
+        return False
 
-# Initialize session state for data storage
-if "audit_data" not in st.session_state:
-    st.session_state.audit_data = {}
+    if not check_password():
+        st.stop()
 
-if "schedule_generated" not in st.session_state:
-    st.session_state.schedule_generated = False
+    st.title("Planner Performance Insights")
 
-if "activity_status" not in st.session_state:
-    st.session_state.activity_status = {}
-if "schedule_data" not in st.session_state:
-    st.session_state.schedule_data = pd.DataFrame()  # Initialize as an empty DataFrame
+    st.header("Upload Excel Files")
+    old_file = st.file_uploader("Upload the old data Excel file", type=["xlsx"])
+    new_file = st.file_uploader("Upload the new data Excel file", type=["xlsx"])
 
+    if old_file and new_file:
+        old_data = pd.read_excel(old_file)
+        new_data = pd.read_excel(new_file)
 
-# Predefined Activities
-common_activities = {
-    "Meeting & Management": [
-        "Opening meeting: With top management to explain the scope of the audit, audit methodology, and reporting.",
-        "Top management: Focus Area - Context of Organization.",
-        "Management Representative: Focus Area.",
-        "HR / Training: Roles, responsibility & authority (5).",
-        "Purchase / Procurement / Supply chain: Process (4.4), Roles, responsibility & authority.",
-        "Stores including scrap yard: Roles, responsibility & authority (5.3), Resource, competence, awareness."
-    ],
-    "Maintenance Activities": [
-        "Mechanical Maintenance: Determining process (4.4), Roles, responsibility.",
-        "Electrical Maintenance: Determining process (4.4), Roles.",
-        "Instrumentation Maintenance: Determining process (4.4), Roles.",
-        "Civil Maintenance: Determining process (4.4).",
-        "Utilities: Determining process (4.4), Roles, responsibility.",
-        "Summarization of Day: Discussion with management team / MR on the outcome of the day"
-    ]
-}
+        required_columns = [
+            "Split Man-Days",
+            "Activity Sub Status",
+            "Split MD Date Year-Month Label",
+            "Project Planner",
+            "Activity Name",
+            "Project Status",
+        ]
 
-# Predefined Audit Types
-predefined_audit_types = ["IA", "P1", "P2", "P3", "P4", "P5", "RC"]
+        if not all(col in old_data.columns for col in required_columns):
+            st.error(
+                f"The old file is missing one or more required columns: {required_columns}"
+            )
+            return
 
-# ---------------- INPUT GENERATOR ----------------
-if app_mode == "Input Generator":
-    st.header("Auditors Planning Schedule Input Generator")
+        if not all(col in new_data.columns for col in required_columns):
+            st.error(
+                f"The new file is missing one or more required columns: {required_columns}"
+            )
+            return
 
-    if st.session_state.schedule_generated:
-        st.warning("Schedule has been generated. Editing is locked.")
-    else:
-        st.subheader("Step 1: Define Sites and Activities")
-        num_sites = st.number_input("How many sites do you want to add?", min_value=1, step=1, value=1)
+        od = old_data[required_columns]
+        nw = new_data[required_columns]
 
-        site_activity_data = {}
+        # Creating new column to categorize man-days
+        od["Type"] = od["Activity Sub Status"].apply(
+            lambda x: "Secured" if x == "Customer accepted" else "Unsecured"
+        )
+        od["RC_Status"] = od.apply(
+            lambda row: "RC Not available"
+            if row["Activity Name"] == "RC"
+            and row["Project Status"] in ["Quote Revision", "Final PA Review"]
+            else (
+                "RC available"
+                if row["Activity Name"] == "RC"
+                and row["Project Status"] in ["Reviewed", "Review In Progress"]
+                else "Not An RC"
+            ),
+            axis=1,
+        )
 
-        for s in range(num_sites):
-            site = st.text_input(f"Enter Site Name {s+1}", key=f"site_{s}")
-            if site:
-                site_activity_data[site] = {}
-                st.session_state.activity_status[site] = {}
+        od["RC_Substatus"] = od.apply(
+            lambda row: "Secured" if row["RC_Status"] == "RC available" and row["Type"] == "Secured"
+            else "Unsecured" if row["RC_Status"] == "RC available" and row["Type"] == "Unsecured"
+            else "NA",
+            axis=1
+        )
 
-                for category, activities in common_activities.items():
-                    st.markdown(f"### {category} for {site}")
-                    for activity in activities:
-                        is_core = st.checkbox(f"Mark '{activity}' as Core", key=f"core_{site}_{activity}")
-                        site_activity_data[site][activity] = "Core" if is_core else "Non-Core"
-                        st.session_state.activity_status[site][activity] = "Available"
-
-        site_audit_data = {}
-
-        st.subheader("Step 2: Add Audits for Each Site")
-
-        for site in site_activity_data.keys():
-            st.markdown(f"## Site: {site}")
-
-            audit_data = []
-            num_audits = st.number_input(f"How many audits for {site}?", min_value=1, step=1, value=1, key=f"num_audits_{site}")
-
-            for i in range(num_audits):
-                st.markdown(f"### Audit {i+1} for {site}")
-                audit_type = st.selectbox(f"Select Audit Type {i+1}", predefined_audit_types, key=f"audit_type_{site}_{i}")
-                proposed_date = st.date_input(f"Proposed Date {i+1}", key=f"date_{site}_{i}")
-                mandays = st.number_input(f"Mandays {i+1}", min_value=1, step=1, key=f"mandays_{site}_{i}")
-
-                available_activities = {activity: status for activity, status in st.session_state.activity_status[site].items() if status == "Available"}
-                selected_activities = {activity: st.checkbox(activity, key=f"{activity}_{site}_{i}") for activity in available_activities.keys()}
-
-                for activity, selected in selected_activities.items():
-                    if selected:
-                        st.session_state.activity_status[site][activity] = "Selected"
-
-                audit_entry = {
-                    "Audit Type": audit_type,
-                    "Proposed Date": proposed_date.strftime("%Y-%m-%d"),
-                    "Mandays": mandays,
-                    "Total Hours": mandays * 8,
-                    "Activities": {activity: "✔️" if selected else "✖️" for activity, selected in selected_activities.items()},
-                    "Core Status": {activity: site_activity_data[site][activity] for activity in selected_activities}
-                }
-
-                audit_data.append(audit_entry)
-
-            site_audit_data[site] = audit_data
-
-        if st.button("Save Data for Scheduling"):
-            st.session_state.audit_data = site_audit_data
-            st.success("Data saved! You can now proceed to the Schedule Generator.")
-
-
-# ---------------- SCHEDULE GENERATOR ----------------
-if "schedule_data" not in st.session_state:
-    st.session_state.schedule_data = pd.DataFrame()
-if "auditor_assignments" not in st.session_state:
-    st.session_state.auditor_assignments = {}
-if "auditors" not in st.session_state:
-    st.session_state.auditors = []
-if "schedule_generated" not in st.session_state:
-    st.session_state.schedule_generated = False
-if "auditor_selection" not in st.session_state:
-    st.session_state.auditor_selection = {}
-
-st.title("Audit Schedule Generator")
-
-# Input auditors
-st.session_state.auditors = st.text_area("Enter Auditors' Names (One per line)", key="auditors_input").split('\n')
-coded_auditors = st.multiselect("Select Coded Auditors", st.session_state.auditors)
-
-if st.button("Generate Schedule"):
-    schedule_data = []
-    start_time = datetime.strptime('09:00', '%H:%M')
-
-    activity_list = ["Opening Meeting", "Document Review", "Site Inspection", "Management Interview", "Closing Meeting"]
-    
-    for activity_name in activity_list:
-        if start_time.strftime('%H:%M') == '13:00':  # Lunch break
-            schedule_data.append(["Lunch Break", "N/A", "13:00", "13:30", "N/A"])
-            start_time += timedelta(minutes=30)
-
-        core_status = "Core" if "Meeting" in activity_name else "Non-Core"
-        allowed_auditors = coded_auditors if core_status == "Core" else st.session_state.auditors
-        assigned_auditor = allowed_auditors[0] if allowed_auditors else "No Auditor"
-
-        schedule_data.append([
-            activity_name,
-            core_status,
-            start_time.strftime('%H:%M'),
-            (start_time + timedelta(minutes=90)).strftime('%H:%M'),
-            assigned_auditor
-        ])
-
-        start_time += timedelta(minutes=90)
-        if start_time.strftime('%H:%M') == '13:00':  # Ensure lunch break is accounted for
-            start_time += timedelta(minutes=30)
-
-    st.session_state.schedule_data = pd.DataFrame(schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor"])
-    st.session_state.auditor_selection = {i: "None" for i in range(len(schedule_data))}
-
-if not st.session_state.schedule_data.empty:
-    st.write("### Editable Schedule")
-    edited_schedule = st.session_state.schedule_data.copy()
-
-    for index, row in edited_schedule.iterrows():
-        if row["Activity"] == "Lunch Break":
-            continue  # Skip editing lunch break
-
-        st.write(f"### {row['Activity']}")
-
-        start_time_input = st.text_input(f"Start Time for {row['Activity']}", value=row['Start Time'])
-        if start_time_input:
-            try:
-                activity_start = datetime.strptime(start_time_input, '%H:%M')
-                activity_hours = st.number_input(f"Enter Hours for '{row['Activity']}'", min_value=0.5, max_value=8.0, value=1.5, step=0.5)
-                activity_end = activity_start + timedelta(hours=activity_hours)
-                edited_schedule.at[index, 'Start Time'] = start_time_input
-                edited_schedule.at[index, 'End Time'] = activity_end.strftime('%H:%M')
-            except ValueError:
-                st.warning("Invalid time format. Please use HH:MM.")
-
-        assigned_auditor = st.selectbox(f"Assign Auditor for '{row['Activity']}'", 
-                                        options=["None"] + st.session_state.auditors, 
-                                        index=(st.session_state.auditors.index(st.session_state.auditor_selection.get(index, "None")) + 1 if st.session_state.auditor_selection.get(index, "None") != "None" else 0),
-                                        key=f"auditor_{index}")
         
-        if assigned_auditor != "None":
-            st.session_state.auditor_selection[index] = assigned_auditor
-            edited_schedule.at[index, 'Assigned Auditor'] = assigned_auditor
-        else:
-            st.session_state.auditor_selection[index] = "None"
-    
-    st.session_state.schedule_data = edited_schedule
+        nw["Type"] = nw["Activity Sub Status"].apply(
+            lambda x: "Secured" if x == "Customer accepted" else "Unsecured"
+        )
+        nw["RC_Status"] = nw.apply(
+            lambda row: "RC Not available"
+            if row["Activity Name"] == "RC"
+            and row["Project Status"] in ["Quote Revision", "Final PA Review"]
+            else (
+                "RC available"
+                if row["Activity Name"] == "RC"
+                and row["Project Status"] in ["Reviewed", "Review In Progress"]
+                else "Not An RC"
+            ),
+            axis=1,
+        )
 
-    # Display the final table
-    st.write("### Final Schedule Table")
-    st.dataframe(st.session_state.schedule_data)
+        nw["RC_Substatus"] = nw.apply(
+            lambda row: "Secured" if row["RC_Status"] == "RC available" and row["Type"] == "Secured"
+            else "Unsecured" if row["RC_Status"] == "RC available" and row["Type"] == "Unsecured"
+            else "NA",
+            axis=1
+        )
 
-    # Download as Excel
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        st.session_state.schedule_data.to_excel(writer, sheet_name='Schedule', index=False)
-    st.download_button("Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
+        
+
+        # Aggregating results
+        old_res = od.groupby(["Project Planner", "Split MD Date Year-Month Label", "Type"])["Split Man-Days"].sum().reset_index()
+        old_res.columns = ["Planner", "Month", "Type", "Man-Days"]
+        old_res_1 = od.groupby(['Project Planner', 'Split MD Date Year-Month Label', 'RC_Status','RC_Substatus'])['Split Man-Days'].sum().reset_index()
+        old_res_1.columns = ['Planner', 'Month', 'RC_Status','RC_Substatus', 'RC_Man-Days']
+        new_res = nw.groupby(["Project Planner", "Split MD Date Year-Month Label", "Type"])["Split Man-Days"].sum().reset_index()
+        new_res.columns = ["Planner", "Month", "Type", "Man-Days"]
+        new_res_1 = nw.groupby(['Project Planner', 'Split MD Date Year-Month Label', 'RC_Status','RC_Substatus'])['Split Man-Days'].sum().reset_index()
+        new_res_1.columns = ['Planner', 'Month', 'RC_Status','RC_Substatus', 'RC_Man-Days']
+
+        # Merging results
+        comparison_df = pd.merge(
+            old_res,
+            new_res,
+            on=["Planner", "Month", "Type"],
+            suffixes=("_old", "_new"),
+            how="outer",
+        )
+        comparison_df_1 = pd.merge(
+            old_res_1,
+            new_res_1,
+            on=["Planner", "Month", "RC_Status", "RC_Substatus"],
+            suffixes=("_old", "_new"),
+            how="outer",
+        ).fillna(0) 
+
+        # Calculating differences
+        comparison_df["Man-Days_Diff"] = (
+            comparison_df["Man-Days_new"] - comparison_df["Man-Days_old"]
+        )
+        comparison_df_1["RC_Man-Days_Diff"] = (
+            comparison_df_1["RC_Man-Days_new"] - comparison_df_1["RC_Man-Days_old"]
+        )
+
+        # Creating pivot tables
+        pivot_df = comparison_df.pivot_table(
+            index=["Planner", "Month"],
+            columns="Type",
+            values=["Man-Days_old", "Man-Days_new", "Man-Days_Diff"],
+            aggfunc="sum",
+            fill_value=0,
+        ).reset_index()
+
+        pivot_df_1 = comparison_df_1.pivot_table(
+            index=['Planner', 'Month'],
+            columns=['RC_Status','RC_Substatus'],  
+            values=['RC_Man-Days_old', 'RC_Man-Days_new', 'RC_Man-Days_Diff'],  
+            aggfunc='sum',  
+            fill_value=0  
+        ).reset_index()
+
+        # Flattening column names
+        pivot_df.columns = ["_".join(col).strip("_") for col in pivot_df.columns]
+        pivot_df_1.columns = [f'{col[0]}_{col[1]}_{col[2]}' for col in pivot_df_1.columns]
+
+        # Adding additional columns
+        pivot_df["Total_portfolio_old"] = pivot_df.get("Man-Days_old_Secured", 0) + pivot_df.get("Man-Days_old_Unsecured", 0)
+        pivot_df["Total_portfolio_new"] = pivot_df.get("Man-Days_new_Secured", 0) + pivot_df.get("Man-Days_new_Unsecured", 0)
+        pivot_df["Total_portfolio Diff"] = pivot_df["Total_portfolio_new"] - pivot_df["Total_portfolio_old"]
+        pivot_df["secured vs portfolio(%)"] = (
+            pivot_df.get("Man-Days_new_Secured", 0) / pivot_df["Total_portfolio_new"] * 100
+        )
+        
+        pivot_df_1["RC_Total_portfolio_old"] = pivot_df_1.get("RC_Man-Days_old_RC available_Secured", 0) + pivot_df_1.get("RC_Man-Days_old_RC available_Unsecured", 0) + pivot_df_1.get("RC_Man-Days_old_RC Not available_NA",0)
+        pivot_df_1["RC_Total_portfolio_new"] = pivot_df_1.get("RC_Man-Days_new_RC available_Secured", 0) + pivot_df_1.get("RC_Man-Days_new_RC available_Unsecured", 0) + pivot_df_1.get("RC_Man-Days_new_RC Not available_NA",0)
+        pivot_df_1["RC_Not Available_portfolio_new"] =  pivot_df_1.get("RC_Man-Days_new_RC Not available_NA",0)
+        pivot_df_1["RC_Not Available_portfolio_old"] = pivot_df_1.get("RC_Man-Days_old_RC Not available_NA",0)
+        
+        pivot_df_1["RC_Total_portfolio Diff"] = pivot_df_1["RC_Total_portfolio_new"] - pivot_df_1["RC_Total_portfolio_old"]
+        pivot_df_1["RC_Not Available_portfolio Diff"] = pivot_df_1["RC_Not Available_portfolio_new"] - pivot_df_1["RC_Not Available_portfolio_old"]
+
+        # Sorting and selecting columns
+        pivot_df = pivot_df[[
+            "Planner", "Month",
+            "Total_portfolio Diff",
+            "Man-Days_Diff_Secured",
+            "Man-Days_Diff_Unsecured",
+            "secured vs portfolio(%)",
+        ]].sort_values(by=["Planner", "Month"]).reset_index(drop=True)
+
+
+        pivot_df_1 = pivot_df_1[[
+            "Planner__", "Month__",
+            "RC_Total_portfolio_new",
+            "RC_Man-Days_new_RC available_Secured",
+            "RC_Man-Days_new_RC available_Unsecured",
+            "RC_Not Available_portfolio_new",
+            "RC_Total_portfolio Diff",
+            "RC_Man-Days_Diff_RC available_Secured",
+            "RC_Man-Days_Diff_RC available_Unsecured",
+            "RC_Not Available_portfolio Diff",
+
+        ]].sort_values(by=["Planner__", "Month__"]).reset_index(drop=True)
+
+        # Output to Streamlit
+        st.header("Comparison Results")
+        st.dataframe(pivot_df)
+        st.dataframe(pivot_df_1)
+
+        # Optional: Save and download results as Excel
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            pivot_df.to_excel(writer, index=False, sheet_name="Comparison Results")
+            pivot_df_1.to_excel(writer, index=False, sheet_name="RC Comparison Results")
+        st.download_button(
+            label="Download Results",
+            data=output.getvalue(),
+            file_name="comparison_results.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+
+
+if __name__ == "__main__":
+    main()
+
