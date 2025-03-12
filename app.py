@@ -21,6 +21,9 @@ if "schedule_generated" not in st.session_state:
 
 if "activity_status" not in st.session_state:
     st.session_state.activity_status = {}
+if "schedule_data" not in st.session_state:
+    st.session_state.schedule_data = pd.DataFrame()  # Initialize as an empty DataFrame
+
 
 # Predefined Activities
 common_activities = {
