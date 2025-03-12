@@ -20,7 +20,11 @@ if "schedule_generated" not in st.session_state:
 
 if "activity_status" not in st.session_state:
     st.session_state.activity_status = {}
-
+    
+if "schedule_data" not in st.session_state or st.session_state.schedule_data.empty:
+    st.session_state.schedule_data = pd.DataFrame(columns=[
+        "Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"
+    ])
 # Predefined Activities
 common_activities = {
     "Meeting & Management": [
@@ -111,7 +115,6 @@ if app_mode == "Input Generator":
 
 
 
-# ---------------- SCHEDULE GENERATOR ----------------
 if app_mode == "Schedule Generator":
     st.header("Schedule Generator")
 
@@ -127,33 +130,30 @@ if app_mode == "Schedule Generator":
         if st.button("Generate Schedule"):
             schedule_data = []
             start_time = datetime.strptime('09:00', '%H:%M')
-            st.session_state.auditor_assignments = {}  # Initialize auditor assignments as empty
+            st.session_state.auditor_assignments = {}
 
             for audit in st.session_state.audit_data[selected_site]:
                 if audit["Audit Type"] == selected_audit_type:
                     activities = [activity for activity, status in audit["Activities"].items() if status == "✔️"]
 
                     for activity in activities:
-                        core_status = audit["Core Status"][activity]
+                        core_status = audit["Core Status"].get(activity, "Non-Core")  # Use get() to avoid KeyError
                         allowed_auditors = coded_auditors if core_status == "Core" else auditors
 
                         schedule_data.append({
                             "Activity": activity,
                             "Core Status": core_status,
                             "Start Time": start_time.strftime('%H:%M'),
-                            "End Time": "",  # Will be updated later
-                            "Assigned Auditor": "",  # Initially empty
-                            "Allowed Auditors": ", ".join(allowed_auditors)  # Ensure this column is set
+                            "End Time": "",
+                            "Assigned Auditor": "",
+                            "Allowed Auditors": ", ".join(allowed_auditors)
                         })
 
-                        
-                        # Update start_time for the next activity
                         start_time += timedelta(minutes=90)
                         if start_time.strftime('%H:%M') == '13:00':  # Handle lunch break
                             start_time += timedelta(minutes=30)
 
             st.session_state.schedule_data = pd.DataFrame(schedule_data)
-
 
         if not st.session_state.schedule_data.empty:
             st.write("### Editable Schedule")
@@ -174,26 +174,15 @@ if app_mode == "Schedule Generator":
                     except ValueError:
                         st.warning("Invalid time format. Please use HH:MM.")
 
-                # Ensure only coded auditors are assigned to core activities
-                allowed_auditors = row['Allowed Auditors'].split(", ")
+                allowed_auditors = row.get("Allowed Auditors", "").split(", ")  # Use .get() to prevent KeyError
                 assigned_auditor = st.selectbox(f"Assign Auditor for '{row['Activity']}'", options=allowed_auditors, key=f"auditor_{index}")
-                
-                # Check for time clashes
-                if assigned_auditor in st.session_state.auditor_assignments:
-                    auditor_schedule = st.session_state.auditor_assignments[assigned_auditor]
-                    for activity_range in auditor_schedule:
-                        if (activity_start < activity_range[1] and activity_end > activity_range[0]):
-                            st.error(f"Time Clash Detected! '{assigned_auditor}' is already assigned to another activity during this period.")
-                
-                # Store auditor assignment
+
                 if assigned_auditor not in st.session_state.auditor_assignments:
                     st.session_state.auditor_assignments[assigned_auditor] = []
-                    
+
                 st.session_state.auditor_assignments[assigned_auditor].append((activity_start, activity_end))
-                
-                # Update the table
                 edited_schedule.at[index, 'Assigned Auditor'] = assigned_auditor
-            
+
             st.session_state.schedule_data = edited_schedule
 
             output = BytesIO()
