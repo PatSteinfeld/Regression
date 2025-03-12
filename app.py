@@ -126,6 +126,8 @@ if "auditors" not in st.session_state:
     st.session_state.auditors = []
 if "schedule_generated" not in st.session_state:
     st.session_state.schedule_generated = False
+if "auditor_selection" not in st.session_state:
+    st.session_state.auditor_selection = {}
 
 if app_mode == "Schedule Generator":
     st.header("Schedule Generator")
@@ -170,6 +172,7 @@ if app_mode == "Schedule Generator":
                             start_time += timedelta(minutes=30)
 
             st.session_state.schedule_data = pd.DataFrame(schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor"])
+            st.session_state.auditor_selection = {i: "None" for i in range(len(schedule_data))}
 
         if not st.session_state.schedule_data.empty:
             st.write("### Editable Schedule")
@@ -191,9 +194,11 @@ if app_mode == "Schedule Generator":
 
                 assigned_auditor = st.selectbox(f"Assign Auditor for '{row['Activity']}'", 
                                                 options=["None"] + st.session_state.auditors, 
-                                                key=f"auditor_{index}_{uuid.uuid4()}")
+                                                index=(st.session_state.auditors.index(st.session_state.auditor_selection.get(index, "None")) + 1 if st.session_state.auditor_selection.get(index, "None") != "None" else 0),
+                                                key=f"auditor_{index}")
                 
                 if assigned_auditor != "None":
+                    st.session_state.auditor_selection[index] = assigned_auditor
                     if assigned_auditor in st.session_state.auditor_assignments:
                         auditor_schedule = st.session_state.auditor_assignments[assigned_auditor]
                         for activity_range in auditor_schedule:
@@ -205,6 +210,8 @@ if app_mode == "Schedule Generator":
                     
                     st.session_state.auditor_assignments[assigned_auditor].append((activity_start, activity_end))
                     edited_schedule.at[index, 'Assigned Auditor'] = assigned_auditor
+                else:
+                    st.session_state.auditor_selection[index] = "None"
                 
             st.session_state.schedule_data = edited_schedule
 
