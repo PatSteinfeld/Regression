@@ -187,8 +187,9 @@ if app_mode == "Schedule Generator":
                         st.warning("Invalid time format. Please use HH:MM.")
 
                 # Ensure only coded auditors are assigned to core activities
-               
-                assigned_auditor = st.selectbox(f"Assign Auditor for '{row['Activity']}'", options=allowed_auditors, key=f"auditor_{index}")
+                auditors = st.text_area("Enter Auditors' Names (One per line)").split('\n')
+                assigned_auditor = st.selectbox(f"Assign Auditor for '{row['Activity']}'", options=auditors, key=f"auditor_{index}")
+
                 
                 # Check for time clashes
                 if assigned_auditor in st.session_state.auditor_assignments:
