@@ -137,21 +137,23 @@ if app_mode == "Schedule Generator":
                         core_status = audit["Core Status"][activity]
                         allowed_auditors = coded_auditors if core_status == "Core" else auditors
 
-                        schedule_data.append([
-                            activity,
-                            core_status,
-                            start_time.strftime('%H:%M'),
-                            "",
-                            "",
-                            ", ".join(allowed_auditors)
-                        ])
+                        schedule_data.append({
+                            "Activity": activity,
+                            "Core Status": core_status,
+                            "Start Time": start_time.strftime('%H:%M'),
+                            "End Time": "",  # Will be updated later
+                            "Assigned Auditor": "",  # Initially empty
+                            "Allowed Auditors": ", ".join(allowed_auditors)  # Ensure this column is set
+                        })
+
                         
                         # Update start_time for the next activity
                         start_time += timedelta(minutes=90)
                         if start_time.strftime('%H:%M') == '13:00':  # Handle lunch break
                             start_time += timedelta(minutes=30)
 
-            st.session_state.schedule_data = pd.DataFrame(schedule_data, columns=["Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"])
+            st.session_state.schedule_data = pd.DataFrame(schedule_data)
+
 
         if not st.session_state.schedule_data.empty:
             st.write("### Editable Schedule")
