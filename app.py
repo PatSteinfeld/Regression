@@ -4,7 +4,7 @@ import json
 import plotly.express as px
 from datetime import datetime, timedelta
 from io import BytesIO
-from st_aggrid import AgGrid, GridOptionsBuilder
+from st_aggrid import AgGrid, GridOptionsBuilder,GridUpdateMode
 
 # Streamlit App Title
 st.title("Auditors Planning Schedule")
