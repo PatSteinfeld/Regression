@@ -107,7 +107,6 @@ if app_mode == "Input Generator":
         if st.button("Save Data for Scheduling"):
             st.session_state.audit_data = site_audit_data
             st.success("Data saved! Proceed to the Schedule Generator.")
-
 # ---------------- SCHEDULE GENERATOR ----------------
 if app_mode == "Schedule Generator":
     st.header("Schedule Generator")
@@ -116,9 +115,11 @@ if app_mode == "Schedule Generator":
         st.warning("No data available. Please use the Input Generator first.")
     else:
         selected_site = st.selectbox("Select Site", list(st.session_state.audit_data.keys()))
-        selected_audit_type = st.selectbox("Select Audit Type", predefined_audit_types)
+        selected_audit_type = st.selectbox("Select Audit Type", ["IA", "P1", "P2", "P3", "P4", "P5", "RC"])
 
         auditors = st.text_area("Enter Auditors' Names (One per line)").split('\n')
+        st.session_state.auditor_list = auditors
+
         coded_auditors = st.multiselect("Select Coded Auditors", auditors)
 
         if st.button("Generate Schedule"):
@@ -138,8 +139,8 @@ if app_mode == "Schedule Generator":
                             "Core Status": core_status,
                             "Start Time": start_time.strftime('%H:%M'),
                             "End Time": (start_time + timedelta(minutes=90)).strftime('%H:%M'),
-                            "Assigned Auditor": "",
-                            "Allowed Auditors": allowed_auditors
+                            "Assigned Auditor": st.session_state.assigned_auditors.get(activity, ""),
+                            "Allowed Auditors": json.dumps(allowed_auditors)
                         })
 
                         start_time += timedelta(minutes=90)
@@ -151,17 +152,23 @@ if app_mode == "Schedule Generator":
         if not st.session_state.schedule_data.empty:
             st.write("### 📝 Assign Auditors")
 
-            # Convert Allowed Auditors list into JSON for Ag-Grid dropdown
-            for i in range(len(st.session_state.schedule_data)):
-                allowed_auditors_list = st.session_state.schedule_data.at[i, "Allowed Auditors"]
-                st.session_state.schedule_data.at[i, "Allowed Auditors"] = json.dumps(allowed_auditors_list)
-
             gb = GridOptionsBuilder.from_dataframe(st.session_state.schedule_data)
             gb.configure_column("Assigned Auditor", editable=True, cellEditor="agSelectCellEditor",
                                 cellEditorParams={"values": auditors})  # Dropdown for auditors
             grid_options = gb.build()
 
-            edited_data = AgGrid(st.session_state.schedule_data, gridOptions=grid_options, height=400)
+            grid_response = AgGrid(
+                st.session_state.schedule_data,
+                gridOptions=grid_options,
+                height=400,
+                update_mode=GridUpdateMode.VALUE_CHANGED
+            )
+
+            updated_data = grid_response["data"]
+
+            # Persist assigned auditors
+            for _, row in updated_data.iterrows():
+                st.session_state.assigned_auditors[row["Activity"]] = row["Assigned Auditor"]
 
             # Gantt Chart Visualization
             fig = px.timeline(
@@ -170,18 +177,15 @@ if app_mode == "Schedule Generator":
                 x_end="End Time",
                 y="Assigned Auditor",
                 color="Core Status",
-                title="📊 Audit Schedule Gantt Chart",
-                labels={"Assigned Auditor": "Auditor"}
+                title="📊 Audit Schedule Gantt Chart"
             )
             st.plotly_chart(fig)
 
             # Download Excel
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                edited_data["data"].to_excel(writer, sheet_name='Schedule', index=False)
-            st.download_button("📥 Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
-
-        st.session_state.schedule_generated = True
+                updated_data.to_excel(writer, sheet_name='Schedule', index=False)
+            st.download_button("📥 Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Schedule.xlsx")
 
 
 
