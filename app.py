@@ -24,6 +24,8 @@ if "schedule_data" not in st.session_state or st.session_state.schedule_data.emp
     st.session_state.schedule_data = pd.DataFrame(columns=[
         "Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"
     ])
+if "assigned_auditors" not in st.session_state:
+    st.session_state.assigned_auditors = {}
 
 # Predefined Activities
 common_activities = {
