@@ -13,7 +13,7 @@ st.title("Auditors Planning Schedule")
 st.sidebar.title("Navigation")
 app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
 
-# Initialize session state for data storage
+# Initialize session state
 if "audit_data" not in st.session_state:
     st.session_state.audit_data = {}
 
@@ -139,7 +139,7 @@ if app_mode == "Schedule Generator":
                             "Start Time": start_time.strftime('%H:%M'),
                             "End Time": (start_time + timedelta(minutes=90)).strftime('%H:%M'),
                             "Assigned Auditor": "",
-                            "Allowed Auditors": ", ".join(allowed_auditors)
+                            "Allowed Auditors": allowed_auditors
                         })
 
                         start_time += timedelta(minutes=90)
@@ -149,16 +149,19 @@ if app_mode == "Schedule Generator":
             st.session_state.schedule_data = pd.DataFrame(schedule_data)
 
         if not st.session_state.schedule_data.empty:
-            st.write("### 📝 Editable Schedule")
+            st.write("### 📝 Assign Auditors")
+
+            # Convert Allowed Auditors list into JSON for Ag-Grid dropdown
+            for i in range(len(st.session_state.schedule_data)):
+                allowed_auditors_list = st.session_state.schedule_data.at[i, "Allowed Auditors"]
+                st.session_state.schedule_data.at[i, "Allowed Auditors"] = json.dumps(allowed_auditors_list)
 
             gb = GridOptionsBuilder.from_dataframe(st.session_state.schedule_data)
-            gb.configure_default_column(editable=True)
+            gb.configure_column("Assigned Auditor", editable=True, cellEditor="agSelectCellEditor",
+                                cellEditorParams={"values": auditors})  # Dropdown for auditors
             grid_options = gb.build()
-            edited_data = AgGrid(st.session_state.schedule_data, gridOptions=grid_options, height=400)
 
-            # Ensure "Assigned Auditor" exists
-            if "Assigned Auditor" not in st.session_state.schedule_data.columns:
-                st.session_state.schedule_data["Assigned Auditor"] = "Unassigned"
+            edited_data = AgGrid(st.session_state.schedule_data, gridOptions=grid_options, height=400)
 
             # Gantt Chart Visualization
             fig = px.timeline(
@@ -179,6 +182,7 @@ if app_mode == "Schedule Generator":
             st.download_button("📥 Download Schedule as Excel", data=output.getvalue(), file_name="Auditors_Planning_Schedule.xlsx")
 
         st.session_state.schedule_generated = True
+
 
 
 
