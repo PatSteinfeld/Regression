@@ -9,8 +9,6 @@ from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 def initialize_session_state():
     if "audit_data" not in st.session_state:
         st.session_state.audit_data = {}
-    if "schedule_generated" not in st.session_state:
-        st.session_state.schedule_generated = False
     if "schedule_data" not in st.session_state:
         st.session_state.schedule_data = pd.DataFrame(columns=[
             "Activity", "Core Status", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"
@@ -89,45 +87,72 @@ def schedule_generator():
     
     selected_site = st.selectbox("Select Site", list(st.session_state.audit_data.keys()))
     selected_audit_type = st.selectbox("Select Audit Type", ["IA", "P1", "P2", "P3", "P4", "P5", "RC"])
+    
     auditors = st.text_area("Enter Auditors' Names (One per line)").split('\n')
+    auditors = [auditor.strip() for auditor in auditors if auditor.strip()]
+    
+    if not auditors:
+        st.warning("Please enter at least one auditor.")
+        return
+    
     coded_auditors = st.multiselect("Select Coded Auditors", auditors)
     
     if st.button("Generate Schedule"):
         schedule_data = []
         start_time = datetime.strptime('09:00', '%H:%M')
+
         for audit in st.session_state.audit_data[selected_site]:
             if audit["Audit Type"] == selected_audit_type:
                 activities = [activity for activity, status in audit["Activities"].items() if status == "✔️"]
                 for activity in activities:
                     core_status = audit["Core Status"].get(activity, "Non-Core")
                     allowed_auditors = coded_auditors if core_status == "Core" else auditors
+                    
+                    assigned_auditor = st.session_state.assigned_auditors.get(activity, "")
+                    
                     schedule_data.append({
                         "Activity": activity,
                         "Core Status": core_status,
                         "Start Time": start_time.strftime('%H:%M'),
                         "End Time": (start_time + timedelta(minutes=90)).strftime('%H:%M'),
-                        "Assigned Auditor": "",
+                        "Assigned Auditor": assigned_auditor,
                         "Allowed Auditors": json.dumps(allowed_auditors)
                     })
+
                     start_time += timedelta(minutes=90)
                     if start_time.strftime('%H:%M') == '13:00':
                         start_time += timedelta(minutes=30)
+
         st.session_state.schedule_data = pd.DataFrame(schedule_data)
-    
+
     if not st.session_state.schedule_data.empty:
         st.write("### 📝 Assign Auditors")
-        gb = GridOptionsBuilder.from_dataframe(st.session_state.schedule_data)
-        gb.configure_column("Assigned Auditor", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": auditors})
-        grid_response = AgGrid(st.session_state.schedule_data, gridOptions=gb.build(), height=400, update_mode=GridUpdateMode.VALUE_CHANGED)
-        st.plotly_chart(px.timeline(st.session_state.schedule_data, x_start="Start Time", x_end="End Time", y="Assigned Auditor", color="Core Status"))
         
+        gb = GridOptionsBuilder.from_dataframe(st.session_state.schedule_data)
+        gb.configure_column("Assigned Auditor", editable=True, cellEditor="agSelectCellEditor", 
+                            cellEditorParams={"values": auditors})
+        grid_response = AgGrid(st.session_state.schedule_data, gridOptions=gb.build(), height=400, update_mode=GridUpdateMode.VALUE_CHANGED)
+        
+        updated_data = grid_response["data"]
+        for _, row in updated_data.iterrows():
+            st.session_state.assigned_auditors[row["Activity"]] = row["Assigned Auditor"]
+
+        st.session_state.schedule_data["Start Time"] = pd.to_datetime(st.session_state.schedule_data["Start Time"], format="%H:%M")
+        st.session_state.schedule_data["End Time"] = pd.to_datetime(st.session_state.schedule_data["End Time"], format="%H:%M")
+
+        fig = px.timeline(st.session_state.schedule_data, x_start="Start Time", x_end="End Time", y="Assigned Auditor", 
+                          color="Core Status", title="📊 Audit Schedule Gantt Chart")
+        st.plotly_chart(fig)
+
 initialize_session_state()
 st.sidebar.title("Navigation")
 app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
+
 if app_mode == "Input Generator":
     input_generator()
 else:
     schedule_generator()
+
 
 
 
