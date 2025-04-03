@@ -16,6 +16,8 @@ def initialize_session_state():
         ])
     if "assigned_auditors" not in st.session_state:
         st.session_state.assigned_auditors = {}
+    if "auditor_availability" not in st.session_state:
+        st.session_state.auditor_availability = {}
 
 # Define common activities
 def define_common_activities():
@@ -84,90 +86,66 @@ def input_generator():
 
 # Schedule generator
 def schedule_generator():
-    st.header("📆 Audit Schedule - Interactive Calendar")
+    st.header("📆 Audit Schedule - Auto-Assignment & Workload Balancing")
 
     if not st.session_state.audit_data:
         st.warning("No data available. Please use the Input Generator first.")
         return
 
-    selected_site = st.selectbox("🏢 Select Site", ["All"] + list(st.session_state.audit_data.keys()))
-    selected_audit_type = st.selectbox("Select Audit Type", ["IA", "P1", "P2", "P3", "P4", "P5", "RC"])
-
     auditors = st.text_area("Enter Auditors' Names (One per line)").split('\n')
     auditors = [auditor.strip() for auditor in auditors if auditor.strip()]
-
     if not auditors:
         st.warning("Please enter at least one auditor.")
         return
 
     coded_auditors = st.multiselect("Select Coded Auditors", auditors)
+    auditor_mandays = {auditor: st.number_input(f"Mandays available for {auditor}", min_value=1, step=1, value=5) for auditor in auditors}
 
     if st.button("Generate Schedule"):
         schedule_data = []
-        start_time = datetime.strptime('09:00', '%H:%M')
-
         for site, audits in st.session_state.audit_data.items():
             for audit in audits:
-                if audit["Audit Type"] == selected_audit_type:
-                    activities = [activity for activity, status in audit["Activities"].items() if status == "✔️"]
-                    for activity in activities:
-                        core_status = audit["Core Status"].get(activity, "Non-Core")
-                        allowed_auditors = coded_auditors if core_status == "Core" else auditors
+                activities = [activity for activity, status in audit["Activities"].items() if status == "✔️"]
+                start_time = datetime.strptime('09:00', '%H:%M')
+                audit_date = datetime.strptime(audit["Proposed Date"], "%Y-%m-%d")
 
-                        assigned_auditor = st.session_state.assigned_auditors.get(activity, "")
+                for activity in activities:
+                    core_status = audit["Core Status"].get(activity, "Non-Core")
+                    allowed_auditors = coded_auditors if core_status == "Core" else auditors
+                    assigned_auditor = next((a for a in allowed_auditors if auditor_mandays[a] > 0), None)
+                    if assigned_auditor:
+                        auditor_mandays[assigned_auditor] -= 1
 
-                        schedule_data.append({
-                            "Site": site,
-                            "Activity": activity,
-                            "Core Status": core_status,
-                            "Proposed Date": audit["Proposed Date"],
-                            "Start Time": start_time.strftime('%H:%M'),
-                            "End Time": (start_time + timedelta(minutes=90)).strftime('%H:%M'),
-                            "Assigned Auditor": assigned_auditor,
-                            "Allowed Auditors": json.dumps(allowed_auditors)
-                        })
-
-                        start_time += timedelta(minutes=90)
-                        if start_time.strftime('%H:%M') == '13:00':
-                            start_time += timedelta(minutes=30)
+                    schedule_data.append({
+                        "Site": site,
+                        "Activity": activity,
+                        "Core Status": core_status,
+                        "Proposed Date": audit["Proposed Date"],
+                        "Start Time": start_time.strftime('%H:%M'),
+                        "End Time": (start_time + timedelta(minutes=90)).strftime('%H:%M'),
+                        "Assigned Auditor": assigned_auditor,
+                        "Allowed Auditors": json.dumps(allowed_auditors)
+                    })
+                    start_time += timedelta(minutes=90)
+                    if start_time.strftime('%H:%M') == '13:00':
+                        start_time += timedelta(minutes=30)
 
         st.session_state.schedule_data = pd.DataFrame(schedule_data)
 
     if not st.session_state.schedule_data.empty:
-        st.write("### 📝 Assign Auditors")
-
-        gb = GridOptionsBuilder.from_dataframe(st.session_state.schedule_data)
-        gb.configure_column("Assigned Auditor", editable=True, cellEditor="agSelectCellEditor",
-                            cellEditorParams={"values": auditors})
-        grid_response = AgGrid(st.session_state.schedule_data, gridOptions=gb.build(), height=400, update_mode=GridUpdateMode.VALUE_CHANGED)
-
-        updated_data = grid_response["data"]
-        for _, row in updated_data.iterrows():
-            st.session_state.assigned_auditors[row["Activity"]] = row["Assigned Auditor"]
-
-        # Convert data to calendar events
-        events = [
-            {
-                "title": f'{row["Activity"]} - {row["Assigned Auditor"]}',
-                "start": f'{row["Proposed Date"]}T{row["Start Time"]}',
-                "end": f'{row["Proposed Date"]}T{row["End Time"]}',
-                "color": "#1f77b4" if row["Core Status"] == "Core" else "#ff7f0e",
-            }
-            for _, row in st.session_state.schedule_data.iterrows()
-        ]
-
-        # Display interactive calendar
-        calendar(events, options={"editable": False, "selectable": True})
+        st.write("### 📝 Review and Adjust Assignments")
+        AgGrid(st.session_state.schedule_data)
 
 # Run app
 initialize_session_state()
 st.sidebar.title("Navigation")
 app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
-
 if app_mode == "Input Generator":
     input_generator()
 else:
     schedule_generator()
+
+
 
 
 
