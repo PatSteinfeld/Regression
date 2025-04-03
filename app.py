@@ -124,7 +124,7 @@ def schedule_generator():
                             "Start Time": start_time.strftime('%H:%M'),
                             "End Time": (start_time + timedelta(minutes=90)).strftime('%H:%M'),
                             "Assigned Auditor": assigned_auditor,
-                            "Allowed Auditors": json.dumps(allowed_auditors)
+                            "Allowed Auditors": ", ".join(allowed_auditors)
                         })
 
                         start_time += timedelta(minutes=90)
@@ -134,16 +134,31 @@ def schedule_generator():
         st.session_state.schedule_data = pd.DataFrame(schedule_data)
 
     if not st.session_state.schedule_data.empty:
-        st.write("### 📝 Assign Auditors")
+        st.write("### 📝 Edit Schedule")
 
         gb = GridOptionsBuilder.from_dataframe(st.session_state.schedule_data)
+
+        # Make all necessary columns editable
+        editable_columns = ["Activity", "Proposed Date", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"]
+        for col in editable_columns:
+            gb.configure_column(col, editable=True)
+
+        # Enable dropdown for Assigned Auditor selection
         gb.configure_column("Assigned Auditor", editable=True, cellEditor="agSelectCellEditor",
                             cellEditorParams={"values": auditors})
-        grid_response = AgGrid(st.session_state.schedule_data, gridOptions=gb.build(), height=400, update_mode=GridUpdateMode.VALUE_CHANGED)
 
-        updated_data = grid_response["data"]
-        for _, row in updated_data.iterrows():
-            st.session_state.assigned_auditors[row["Activity"]] = row["Assigned Auditor"]
+        grid_options = gb.build()
+        
+        # Display editable grid
+        grid_response = AgGrid(
+            st.session_state.schedule_data, 
+            gridOptions=grid_options, 
+            height=400, 
+            update_mode=GridUpdateMode.VALUE_CHANGED
+        )
+
+        # Save updates back to session state
+        st.session_state.schedule_data = grid_response["data"]
 
         # Convert data to calendar events
         events = [
@@ -157,7 +172,7 @@ def schedule_generator():
         ]
 
         # Display interactive calendar
-        calendar(events, options={"editable": False, "selectable": True})
+        calendar(events, options={"editable": True, "selectable": True})
 
 # Run app
 initialize_session_state()
