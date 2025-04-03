@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
+# Initialize session state
 def initialize_session_state():
     if "audit_data" not in st.session_state:
         st.session_state.audit_data = {}
@@ -16,6 +17,7 @@ def initialize_session_state():
     if "assigned_auditors" not in st.session_state:
         st.session_state.assigned_auditors = {}
 
+# Define common activities
 def define_common_activities():
     return {
         "Meeting & Management": [
@@ -36,6 +38,7 @@ def define_common_activities():
         ]
     }
 
+# Input generator
 def input_generator():
     st.header("Auditors Planning Schedule Input Generator")
     common_activities = define_common_activities()
@@ -79,6 +82,7 @@ def input_generator():
         st.session_state.audit_data = site_audit_data
         st.success("Data saved! Proceed to the Schedule Generator.")
 
+# Schedule generator
 def schedule_generator():
     st.header("Schedule Generator")
     if not st.session_state.audit_data:
@@ -88,14 +92,12 @@ def schedule_generator():
     selected_site = st.selectbox("Select Site", list(st.session_state.audit_data.keys()))
     selected_audit_type = st.selectbox("Select Audit Type", ["IA", "P1", "P2", "P3", "P4", "P5", "RC"])
     
-    auditors = st.text_area("Enter Auditors' Names (One per line)").split('\n')
-    auditors = [auditor.strip() for auditor in auditors if auditor.strip()]
-    
+    auditors = st.multiselect("Select Available Auditors", ["Alice", "Bob", "Charlie", "David", "Eve"])  # Predefined names, can be modified
     if not auditors:
-        st.warning("Please enter at least one auditor.")
+        st.warning("Please select at least one auditor.")
         return
     
-    coded_auditors = st.multiselect("Select Coded Auditors", auditors)
+    coded_auditors = st.multiselect("Select Coded Auditors (For Core Activities)", auditors)
     
     if st.button("Generate Schedule"):
         schedule_data = []
@@ -109,7 +111,7 @@ def schedule_generator():
                     allowed_auditors = coded_auditors if core_status == "Core" else auditors
                     
                     assigned_auditor = st.session_state.assigned_auditors.get(activity, "")
-                    
+
                     schedule_data.append({
                         "Activity": activity,
                         "Core Status": core_status,
@@ -144,6 +146,15 @@ def schedule_generator():
                           color="Core Status", title="📊 Audit Schedule Gantt Chart")
         st.plotly_chart(fig)
 
+        # Download Excel button
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            st.session_state.schedule_data.to_excel(writer, index=False, sheet_name="Schedule")
+        output.seek(0)
+        
+        st.download_button("📥 Download Schedule", output, file_name="audit_schedule.xlsx", mime="application/vnd.ms-excel")
+
+# Run app
 initialize_session_state()
 st.sidebar.title("Navigation")
 app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
@@ -152,6 +163,7 @@ if app_mode == "Input Generator":
     input_generator()
 else:
     schedule_generator()
+
 
 
 
