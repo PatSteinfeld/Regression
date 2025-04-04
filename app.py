@@ -38,6 +38,53 @@ def define_common_activities():
         ]
     }
 
+# Export audit schedule and auditor info to Excel
+def export_schedule_excel(audit_data, auditors, coded_auditors):
+    flat_records = []
+
+    for site, audits in audit_data.items():
+        for audit in audits:
+            for activity, status in audit["Activities"].items():
+                flat_records.append({
+                    "Site": site,
+                    "Audit Type": audit["Audit Type"],
+                    "Proposed Date": audit["Proposed Date"],
+                    "Mandays": audit["Mandays"],
+                    "Total Hours": audit["Total Hours"],
+                    "Activity": activity,
+                    "Activity Status": status,
+                    "Core Status": audit["Core Status"].get(activity, "Non-Core")
+                })
+
+    df_activities = pd.DataFrame(flat_records)
+    df_auditors = pd.DataFrame({
+        "Auditor Name": auditors,
+        "Coded Auditor": ["Yes" if auditor in coded_auditors else "No" for auditor in auditors],
+        "Available Mandays": [5] * len(auditors)
+    })
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df_activities.to_excel(writer, index=False, sheet_name="AuditPlanInput")
+        df_auditors.to_excel(writer, index=False, sheet_name="Auditors")
+
+        workbook = writer.book
+        worksheet = workbook.add_worksheet("ScheduleInstructions")
+        instructions = [
+            "📌 Instructions:",
+            "1. Go to 'AuditPlanInput' to review planned audits & activities.",
+            "2. Go to 'Auditors' to review available auditors and core coding.",
+            "3. Build your schedule manually using Excel filters, pivots, and formulas.",
+            "4. Only coded auditors should be assigned to Core activities.",
+            "5. Each Manday = 8 hours. Activities may span multiple mandays/days.",
+            "6. Add Gantt charts / pivot summaries as needed."
+        ]
+        for idx, text in enumerate(instructions):
+            worksheet.write(idx, 0, text)
+
+    output.seek(0)
+    return output
+
 # Input generator
 def input_generator():
     st.header("Auditors Planning Schedule Input Generator")
@@ -148,19 +195,19 @@ def schedule_generator():
                             cellEditorParams={"values": auditors})
 
         grid_options = gb.build()
-        
+
         # Display editable grid
         grid_response = AgGrid(
-            st.session_state.schedule_data, 
-            gridOptions=grid_options, 
-            height=400, 
+            st.session_state.schedule_data,
+            gridOptions=grid_options,
+            height=400,
             update_mode=GridUpdateMode.VALUE_CHANGED
         )
 
         # Save updates back to session state
         st.session_state.schedule_data = grid_response["data"]
 
-        # Convert data to calendar events
+        # Display calendar
         events = [
             {
                 "title": f'{row["Activity"]} - {row["Assigned Auditor"]}',
@@ -171,8 +218,21 @@ def schedule_generator():
             for _, row in st.session_state.schedule_data.iterrows()
         ]
 
-        # Display interactive calendar
         calendar(events, options={"editable": True, "selectable": True})
+
+        # Export Excel
+        if st.button("📥 Export Full Schedule to Excel"):
+            output = export_schedule_excel(
+                audit_data=st.session_state.audit_data,
+                auditors=auditors,
+                coded_auditors=coded_auditors
+            )
+            st.download_button(
+                label="Download Schedule Excel Template",
+                data=output.getvalue(),
+                file_name="Audit_Schedule_Template.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
 # Run app
 initialize_session_state()
