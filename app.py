@@ -1,10 +1,9 @@
 import streamlit as st
 import pandas as pd
-import json
 from datetime import datetime, timedelta
 from io import BytesIO
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
-from streamlit_calendar import calendar
+import xlsxwriter
 
 # Initialize session state
 def initialize_session_state():
@@ -17,7 +16,6 @@ def initialize_session_state():
     if "assigned_auditors" not in st.session_state:
         st.session_state.assigned_auditors = {}
 
-# Define common activities
 def define_common_activities():
     return {
         "Meeting & Management": [
@@ -38,54 +36,6 @@ def define_common_activities():
         ]
     }
 
-# Export audit schedule and auditor info to Excel
-def export_schedule_excel(audit_data, auditors, coded_auditors):
-    flat_records = []
-
-    for site, audits in audit_data.items():
-        for audit in audits:
-            for activity, status in audit["Activities"].items():
-                flat_records.append({
-                    "Site": site,
-                    "Audit Type": audit["Audit Type"],
-                    "Proposed Date": audit["Proposed Date"],
-                    "Mandays": audit["Mandays"],
-                    "Total Hours": audit["Total Hours"],
-                    "Activity": activity,
-                    "Activity Status": status,
-                    "Core Status": audit["Core Status"].get(activity, "Non-Core")
-                })
-
-    df_activities = pd.DataFrame(flat_records)
-    df_auditors = pd.DataFrame({
-        "Auditor Name": auditors,
-        "Coded Auditor": ["Yes" if auditor in coded_auditors else "No" for auditor in auditors],
-        "Available Mandays": [5] * len(auditors)
-    })
-
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df_activities.to_excel(writer, index=False, sheet_name="AuditPlanInput")
-        df_auditors.to_excel(writer, index=False, sheet_name="Auditors")
-
-        workbook = writer.book
-        worksheet = workbook.add_worksheet("ScheduleInstructions")
-        instructions = [
-            "📌 Instructions:",
-            "1. Go to 'AuditPlanInput' to review planned audits & activities.",
-            "2. Go to 'Auditors' to review available auditors and core coding.",
-            "3. Build your schedule manually using Excel filters, pivots, and formulas.",
-            "4. Only coded auditors should be assigned to Core activities.",
-            "5. Each Manday = 8 hours. Activities may span multiple mandays/days.",
-            "6. Add Gantt charts / pivot summaries as needed."
-        ]
-        for idx, text in enumerate(instructions):
-            worksheet.write(idx, 0, text)
-
-    output.seek(0)
-    return output
-
-# Input generator
 def input_generator():
     st.header("Auditors Planning Schedule Input Generator")
     common_activities = define_common_activities()
@@ -129,16 +79,12 @@ def input_generator():
         st.session_state.audit_data = site_audit_data
         st.success("Data saved! Proceed to the Schedule Generator.")
 
-# Schedule generator
 def schedule_generator():
-    st.header("📆 Audit Schedule - Interactive Calendar")
+    st.header("📆 Audit Schedule Generator & Excel Export")
 
     if not st.session_state.audit_data:
         st.warning("No data available. Please use the Input Generator first.")
         return
-
-    selected_site = st.selectbox("🏢 Select Site", ["All"] + list(st.session_state.audit_data.keys()))
-    selected_audit_type = st.selectbox("Select Audit Type", ["IA", "P1", "P2", "P3", "P4", "P5", "RC"])
 
     auditors = st.text_area("Enter Auditors' Names (One per line)").split('\n')
     auditors = [auditor.strip() for auditor in auditors if auditor.strip()]
@@ -149,92 +95,49 @@ def schedule_generator():
 
     coded_auditors = st.multiselect("Select Coded Auditors", auditors)
 
-    if st.button("Generate Schedule"):
-        schedule_data = []
-        start_time = datetime.strptime('09:00', '%H:%M')
-
+    if st.button("Generate and Export Schedule to Excel"):
+        sitewise_dfs = {}
         for site, audits in st.session_state.audit_data.items():
+            schedule_data = []
+            start_time = datetime.strptime('09:00', '%H:%M')
+
             for audit in audits:
-                if audit["Audit Type"] == selected_audit_type:
-                    activities = [activity for activity, status in audit["Activities"].items() if status == "✔️"]
-                    for activity in activities:
-                        core_status = audit["Core Status"].get(activity, "Non-Core")
-                        allowed_auditors = coded_auditors if core_status == "Core" else auditors
+                activities = [activity for activity, status in audit["Activities"].items() if status == "✔️"]
+                for activity in activities:
+                    core_status = audit["Core Status"].get(activity, "Non-Core")
+                    allowed_auditors = coded_auditors if core_status == "Core" else auditors
+                    assigned_auditor = allowed_auditors[0] if allowed_auditors else ""
 
-                        assigned_auditor = st.session_state.assigned_auditors.get(activity, "")
+                    schedule_data.append({
+                        "Site": site,
+                        "Activity": activity,
+                        "Core Status": core_status,
+                        "Proposed Date": audit["Proposed Date"],
+                        "Start Time": start_time.strftime('%H:%M'),
+                        "End Time": (start_time + timedelta(minutes=90)).strftime('%H:%M'),
+                        "Assigned Auditor": assigned_auditor,
+                        "Allowed Auditors": ", ".join(allowed_auditors)
+                    })
 
-                        schedule_data.append({
-                            "Site": site,
-                            "Activity": activity,
-                            "Core Status": core_status,
-                            "Proposed Date": audit["Proposed Date"],
-                            "Start Time": start_time.strftime('%H:%M'),
-                            "End Time": (start_time + timedelta(minutes=90)).strftime('%H:%M'),
-                            "Assigned Auditor": assigned_auditor,
-                            "Allowed Auditors": ", ".join(allowed_auditors)
-                        })
+                    start_time += timedelta(minutes=90)
+                    if start_time.strftime('%H:%M') == '13:00':
+                        start_time += timedelta(minutes=30)
 
-                        start_time += timedelta(minutes=90)
-                        if start_time.strftime('%H:%M') == '13:00':
-                            start_time += timedelta(minutes=30)
+            sitewise_dfs[site] = pd.DataFrame(schedule_data)
 
-        st.session_state.schedule_data = pd.DataFrame(schedule_data)
+        # Create Excel file
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            for site, df in sitewise_dfs.items():
+                df.to_excel(writer, index=False, sheet_name=site[:31])
 
-    if not st.session_state.schedule_data.empty:
-        st.write("### 📝 Edit Schedule")
-
-        gb = GridOptionsBuilder.from_dataframe(st.session_state.schedule_data)
-
-        # Make all necessary columns editable
-        editable_columns = ["Activity", "Proposed Date", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"]
-        for col in editable_columns:
-            gb.configure_column(col, editable=True)
-
-        # Enable dropdown for Assigned Auditor selection
-        gb.configure_column("Assigned Auditor", editable=True, cellEditor="agSelectCellEditor",
-                            cellEditorParams={"values": auditors})
-
-        grid_options = gb.build()
-
-        # Display editable grid
-        grid_response = AgGrid(
-            st.session_state.schedule_data,
-            gridOptions=grid_options,
-            height=400,
-            update_mode=GridUpdateMode.VALUE_CHANGED
+        st.download_button(
+            label="📥 Download Schedule Excel File",
+            data=output.getvalue(),
+            file_name="Audit_Schedule.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-        # Save updates back to session state
-        st.session_state.schedule_data = grid_response["data"]
-
-        # Display calendar
-        events = [
-            {
-                "title": f'{row["Activity"]} - {row["Assigned Auditor"]}',
-                "start": f'{row["Proposed Date"]}T{row["Start Time"]}',
-                "end": f'{row["Proposed Date"]}T{row["End Time"]}',
-                "color": "#1f77b4" if row["Core Status"] == "Core" else "#ff7f0e",
-            }
-            for _, row in st.session_state.schedule_data.iterrows()
-        ]
-
-        calendar(events, options={"editable": True, "selectable": True})
-
-        # Export Excel
-        if st.button("📥 Export Full Schedule to Excel"):
-            output = export_schedule_excel(
-                audit_data=st.session_state.audit_data,
-                auditors=auditors,
-                coded_auditors=coded_auditors
-            )
-            st.download_button(
-                label="Download Schedule Excel Template",
-                data=output.getvalue(),
-                file_name="Audit_Schedule_Template.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
-# Run app
 initialize_session_state()
 st.sidebar.title("Navigation")
 app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
@@ -243,6 +146,7 @@ if app_mode == "Input Generator":
     input_generator()
 else:
     schedule_generator()
+
 
 
 
