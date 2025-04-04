@@ -1,87 +1,62 @@
 import streamlit as st
 import pandas as pd
-import json
 from datetime import datetime, timedelta
-from io import BytesIO
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from streamlit_calendar import calendar
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
-# Initialize session state
+# ----------- Utility Functions -----------
 def initialize_session_state():
     if "audit_data" not in st.session_state:
         st.session_state.audit_data = {}
     if "schedule_data" not in st.session_state:
-        st.session_state.schedule_data = pd.DataFrame(columns=[
-            "Site", "Activity", "Core Status", "Proposed Date", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"
-        ])
-    if "assigned_auditors" not in st.session_state:
-        st.session_state.assigned_auditors = {}
+        st.session_state.schedule_data = pd.DataFrame()
+    if "site_auditor_info" not in st.session_state:
+        st.session_state.site_auditor_info = {}
 
-# Define common activities
 def define_common_activities():
-    return {
-        "Meeting & Management": [
-            "Opening meeting with top management",
-            "Top management focus area: Context of Organization",
-            "Management Representative focus area",
-            "HR / Training: Roles, responsibility & authority",
-            "Purchase / Procurement / Supply chain process",
-            "Stores including scrap yard: Resource, competence, awareness"
-        ],
-        "Maintenance Activities": [
-            "Mechanical Maintenance process",
-            "Electrical Maintenance process",
-            "Instrumentation Maintenance process",
-            "Civil Maintenance process",
-            "Utilities process",
-            "Summarization of Day"
-        ]
+    st.markdown("### Define Common Activities")
+    categories = {
+        "Audit Planning": st.text_area("Audit Planning Activities (Comma-separated)", "Planning Meeting, Document Review"),
+        "Opening Meeting": st.text_area("Opening Meeting Activities (Comma-separated)", "Opening Meeting"),
+        "Process Audits": st.text_area("Process Audit Activities (Comma-separated)", "Production, Purchasing, Quality, Warehouse"),
+        "Closing Meeting": st.text_area("Closing Meeting Activities (Comma-separated)", "Closing Meeting")
     }
+    return {k: [a.strip() for a in v.split(',') if a.strip()] for k, v in categories.items()}
 
-# Export audit schedule and auditor info to Excel (separate sheets per site)
-def export_schedule_excel(audit_data, auditors, coded_auditors, full_schedule_df):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        # Write per site schedule
-        for site in full_schedule_df['Site'].unique():
-            site_df = full_schedule_df[full_schedule_df['Site'] == site]
-            site_df.to_excel(writer, index=False, sheet_name=site[:31])
+def define_site_auditors(site_list):
+    site_auditor_info = {}
+    for site in site_list:
+        st.markdown(f"### 👥 Auditors for Site: {site}")
+        auditors_input = st.text_area(f"Enter Auditors for {site} (One per line)", key=f"{site}_auditors")
+        auditors = [a.strip() for a in auditors_input.split('\n') if a.strip()]
+        coded_auditors = st.multiselect(f"Select Coded Auditors for {site}", auditors, key=f"{site}_coded")
 
-        # Auditors info
-        df_auditors = pd.DataFrame({
-            "Auditor Name": auditors,
-            "Coded Auditor": ["Yes" if auditor in coded_auditors else "No" for auditor in auditors],
-            "Available Mandays": [5] * len(auditors)
-        })
-        df_auditors.to_excel(writer, index=False, sheet_name="Auditors")
+        st.markdown(f"#### 🌟 Auditor Availability for {site}")
+        availability = {}
+        for auditor in auditors:
+            mandays = st.number_input(f"Available Mandays for {auditor}", min_value=0.0, step=0.5, value=1.0, key=f"{site}_{auditor}_availability")
+            availability[auditor] = mandays
 
-        # Instructions
-        workbook = writer.book
-        worksheet = workbook.add_worksheet("Instructions")
-        instructions = [
-            "📌 Instructions:",
-            "1. Each sheet represents a separate site's schedule.",
-            "2. Only coded auditors should be assigned to Core activities.",
-            "3. Each Manday = 8 hours. Activities may span multiple days.",
-            "4. Add pivot tables/charts or filters for better analysis."
-        ]
-        for idx, text in enumerate(instructions):
-            worksheet.write(idx, 0, text)
+        site_auditor_info[site] = {
+            "auditors": auditors,
+            "coded_auditors": coded_auditors,
+            "availability": availability
+        }
 
-    output.seek(0)
-    return output
+    return site_auditor_info
 
-# Input generator
 def input_generator():
     st.header("Auditors Planning Schedule Input Generator")
     common_activities = define_common_activities()
     num_sites = st.number_input("Number of sites to add", min_value=1, step=1, value=1)
 
     site_activity_data = {}
+    site_list = []
 
     for s in range(num_sites):
         site = st.text_input(f"Enter Site Name {s+1}", key=f"site_{s}")
         if site:
+            site_list.append(site)
             site_activity_data[site] = {}
             for category, activities in common_activities.items():
                 st.markdown(f"### {category} for {site}")
@@ -90,8 +65,7 @@ def input_generator():
                     site_activity_data[site][activity] = "Core" if is_core else "Non-Core"
 
     site_audit_data = {}
-
-    for site in site_activity_data.keys():
+    for site in site_list:
         st.markdown(f"## Site: {site}")
         num_audits = st.number_input(f"Number of audits for {site}", min_value=1, step=1, value=1, key=f"num_audits_{site}")
         audit_data = []
@@ -105,70 +79,70 @@ def input_generator():
                 "Proposed Date": proposed_date.strftime("%Y-%m-%d"),
                 "Mandays": mandays,
                 "Total Hours": mandays * 8,
-                "Activities": {activity: "✔️" if selected else "✖️" for activity, selected in selected_activities.items()},
+                "Activities": {activity: "✔️" if selected else "❌" for activity, selected in selected_activities.items()},
                 "Core Status": {activity: site_activity_data[site][activity] for activity in selected_activities}
             }
             audit_data.append(audit_entry)
         site_audit_data[site] = audit_data
 
+    site_auditor_info = define_site_auditors(site_list)
+
     if st.button("Save Data for Scheduling"):
         st.session_state.audit_data = site_audit_data
+        st.session_state.site_auditor_info = site_auditor_info
         st.success("Data saved! Proceed to the Schedule Generator.")
 
-# Schedule generator
 def schedule_generator():
-    st.header("📆 Audit Schedule - Interactive Calendar")
+    st.header("🗖️ Audit Schedule - Interactive Calendar")
 
-    if not st.session_state.audit_data:
+    if not st.session_state.get("audit_data") or not st.session_state.get("site_auditor_info"):
         st.warning("No data available. Please use the Input Generator first.")
         return
 
-    auditors = st.text_area("Enter Auditors' Names (One per line)").split('\n')
-    auditors = [auditor.strip() for auditor in auditors if auditor.strip()]
+    selected_site = st.selectbox("🏢 Select Site", list(st.session_state.audit_data.keys()))
+    selected_audit_type = st.selectbox("Select Audit Type", ["IA", "P1", "P2", "P3", "P4", "P5", "RC"])
+
+    auditors = st.session_state.site_auditor_info[selected_site]["auditors"]
+    coded_auditors = st.session_state.site_auditor_info[selected_site]["coded_auditors"]
+    availability = st.session_state.site_auditor_info[selected_site]["availability"]
+    used_mandays = {auditor: 0.0 for auditor in auditors}
 
     if not auditors:
-        st.warning("Please enter at least one auditor.")
+        st.warning(f"Please enter auditors for site: {selected_site}")
         return
-
-    coded_auditors = st.multiselect("Select Coded Auditors", auditors)
 
     if st.button("Generate Schedule"):
         schedule_data = []
+        start_time = datetime.today().replace(hour=9, minute=0, second=0, microsecond=0)
 
-        for site, audits in st.session_state.audit_data.items():
-            for audit in audits:
+        audits = st.session_state.audit_data[selected_site]
+        for audit in audits:
+            if audit["Audit Type"] == selected_audit_type:
                 activities = [activity for activity, status in audit["Activities"].items() if status == "✔️"]
-                total_hours = audit["Total Hours"]
-                start_date = datetime.strptime(audit["Proposed Date"], "%Y-%m-%d")
-                current_time = datetime.combine(start_date, datetime.strptime("09:00", "%H:%M").time())
-                hours_allocated = 0
-
                 for activity in activities:
                     core_status = audit["Core Status"].get(activity, "Non-Core")
                     allowed_auditors = coded_auditors if core_status == "Core" else auditors
-                    duration = 90  # 1.5 hours default per activity
-                    end_time = current_time + timedelta(minutes=duration)
 
-                    if current_time.time().strftime("%H:%M") == "13:00":
-                        current_time += timedelta(minutes=30)
-                        end_time += timedelta(minutes=30)
-
-                    if hours_allocated + (duration / 60) > total_hours:
-                        break  # Don't exceed total hours
+                    assigned_auditor = ""
+                    available_options = [a for a in allowed_auditors if used_mandays[a] < availability[a]]
+                    if available_options:
+                        assigned_auditor = min(available_options, key=lambda a: used_mandays[a])
+                        used_mandays[assigned_auditor] += 0.1875
 
                     schedule_data.append({
-                        "Site": site,
+                        "Site": selected_site,
                         "Activity": activity,
                         "Core Status": core_status,
-                        "Proposed Date": current_time.strftime("%Y-%m-%d"),
-                        "Start Time": current_time.strftime("%H:%M"),
-                        "End Time": end_time.strftime("%H:%M"),
-                        "Assigned Auditor": allowed_auditors[0] if allowed_auditors else "",
+                        "Proposed Date": audit["Proposed Date"],
+                        "Start Time": start_time.strftime('%H:%M'),
+                        "End Time": (start_time + timedelta(minutes=90)).strftime('%H:%M'),
+                        "Assigned Auditor": assigned_auditor,
                         "Allowed Auditors": ", ".join(allowed_auditors)
                     })
 
-                    current_time = end_time
-                    hours_allocated += duration / 60
+                    start_time += timedelta(minutes=90)
+                    if start_time.time() == datetime.strptime("13:00", "%H:%M").time():
+                        start_time += timedelta(minutes=30)
 
         st.session_state.schedule_data = pd.DataFrame(schedule_data)
 
@@ -179,13 +153,18 @@ def schedule_generator():
         editable_columns = ["Activity", "Proposed Date", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"]
         for col in editable_columns:
             gb.configure_column(col, editable=True)
-        gb.configure_column("Assigned Auditor", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": auditors})
+
+        gb.configure_column("Assigned Auditor", editable=True, cellEditor="agSelectCellEditor",
+                            cellEditorParams={"values": auditors})
+        grid_options = gb.build()
+
         grid_response = AgGrid(
             st.session_state.schedule_data,
-            gridOptions=gb.build(),
+            gridOptions=grid_options,
             height=400,
             update_mode=GridUpdateMode.VALUE_CHANGED
         )
+
         st.session_state.schedule_data = grid_response["data"]
 
         events = [
@@ -199,24 +178,11 @@ def schedule_generator():
         ]
         calendar(events, options={"editable": True, "selectable": True})
 
-        if st.button("📥 Export Full Schedule to Excel"):
-            output = export_schedule_excel(
-                audit_data=st.session_state.audit_data,
-                auditors=auditors,
-                coded_auditors=coded_auditors,
-                full_schedule_df=st.session_state.schedule_data
-            )
-            st.download_button(
-                label="Download Schedule Excel",
-                data=output.getvalue(),
-                file_name="Audit_Schedule.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
-# Run app
+# ---------- App Navigation ----------
 initialize_session_state()
 st.sidebar.title("Navigation")
 app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
+
 if app_mode == "Input Generator":
     input_generator()
 else:
