@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from streamlit_calendar import calendar
+from streamlit_calendar import calendar as streamlit_calendar_component
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 # ----------- Utility Functions -----------
@@ -92,8 +92,37 @@ def input_generator():
         st.session_state.site_auditor_info = site_auditor_info
         st.success("Data saved! Proceed to the Schedule Generator.")
 
+def render_calendar_and_get_updates(schedule_df):
+    events = []
+    for idx, row in schedule_df.iterrows():
+        events.append({
+            "id": str(idx),
+            "title": f'{row["Activity"]} - {row["Assigned Auditor"]}',
+            "start": f'{row["Proposed Date"]}T{row["Start Time"]}',
+            "end": f'{row["Proposed Date"]}T{row["End Time"]}',
+            "color": "#1f77b4" if row["Core Status"] == "Core" else "#ff7f0e",
+        })
+
+    calendar_options = {
+        "editable": True,
+        "selectable": True,
+        "eventStartEditable": True,
+        "eventDurationEditable": True,
+        "initialView": "timeGridWeek",
+        "slotMinTime": "08:00:00",
+        "slotMaxTime": "18:00:00",
+    }
+
+    st.markdown("### 🗕️ Interactive Calendar (Drag to Reschedule)")
+    calendar_events = streamlit_calendar_component(
+        events=events,
+        options=calendar_options,
+        key="sync_calendar"
+    )
+    return calendar_events
+
 def schedule_generator():
-    st.header("🗖️ Audit Schedule - Interactive Calendar")
+    st.header("🖖️ Audit Schedule - Interactive Calendar")
 
     if not st.session_state.get("audit_data") or not st.session_state.get("site_auditor_info"):
         st.warning("No data available. Please use the Input Generator first.")
@@ -147,8 +176,19 @@ def schedule_generator():
         st.session_state.schedule_data = pd.DataFrame(schedule_data)
 
     if not st.session_state.schedule_data.empty:
-        st.write("### 📝 Edit Schedule")
+        calendar_events = render_calendar_and_get_updates(st.session_state.schedule_data)
 
+        if "event" in calendar_events:
+            for event in calendar_events["event"]:
+                idx = int(event["id"])
+                start_dt = datetime.fromisoformat(event["start"])
+                end_dt = datetime.fromisoformat(event["end"])
+
+                st.session_state.schedule_data.at[idx, "Proposed Date"] = start_dt.date().strftime("%Y-%m-%d")
+                st.session_state.schedule_data.at[idx, "Start Time"] = start_dt.strftime("%H:%M")
+                st.session_state.schedule_data.at[idx, "End Time"] = end_dt.strftime("%H:%M")
+
+        st.write("### 📝 Editable Grid")
         gb = GridOptionsBuilder.from_dataframe(st.session_state.schedule_data)
         editable_columns = ["Activity", "Proposed Date", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"]
         for col in editable_columns:
@@ -162,21 +202,11 @@ def schedule_generator():
             st.session_state.schedule_data,
             gridOptions=grid_options,
             height=400,
-            update_mode=GridUpdateMode.VALUE_CHANGED
+            update_mode=GridUpdateMode.VALUE_CHANGED,
+            key="schedule_grid"
         )
 
         st.session_state.schedule_data = grid_response["data"]
-
-        events = [
-            {
-                "title": f'{row["Activity"]} - {row["Assigned Auditor"]}',
-                "start": f'{row["Proposed Date"]}T{row["Start Time"]}',
-                "end": f'{row["Proposed Date"]}T{row["End Time"]}',
-                "color": "#1f77b4" if row["Core Status"] == "Core" else "#ff7f0e",
-            }
-            for _, row in st.session_state.schedule_data.iterrows()
-        ]
-        calendar(events, options={"editable": True, "selectable": True})
 
 # ---------- App Navigation ----------
 initialize_session_state()
@@ -187,6 +217,7 @@ if app_mode == "Input Generator":
     input_generator()
 else:
     schedule_generator()
+
 
 
 
