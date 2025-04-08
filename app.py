@@ -178,6 +178,16 @@ def schedule_generator():
     if not st.session_state.schedule_data.empty:
         calendar_events = render_calendar_and_get_updates(st.session_state.schedule_data)
 
+        if "event" in calendar_events:
+            for event in calendar_events["event"]:
+                idx = int(event["id"])
+                start_dt = datetime.fromisoformat(event["start"])
+                end_dt = datetime.fromisoformat(event["end"])
+
+                st.session_state.schedule_data.at[idx, "Proposed Date"] = start_dt.date().strftime("%Y-%m-%d")
+                st.session_state.schedule_data.at[idx, "Start Time"] = start_dt.strftime("%H:%M")
+                st.session_state.schedule_data.at[idx, "End Time"] = end_dt.strftime("%H:%M")
+
         st.write("### 📝 Editable Grid")
         gb = GridOptionsBuilder.from_dataframe(st.session_state.schedule_data)
         editable_columns = ["Activity", "Proposed Date", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"]
@@ -198,18 +208,15 @@ def schedule_generator():
 
         st.session_state.schedule_data = grid_response["data"]
 
-        # Calendar sync logic (manual trigger)
-        if "event" in calendar_events and st.button("🔁 Sync Calendar Changes to Table"):
-            for event in calendar_events["event"]:
-                idx = int(event["id"])
-                start_dt = datetime.fromisoformat(event["start"])
-                end_dt = datetime.fromisoformat(event["end"])
+# ---------- App Navigation ----------
+initialize_session_state()
+st.sidebar.title("Navigation")
+app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
 
-                st.session_state.schedule_data.at[idx, "Proposed Date"] = start_dt.date().strftime("%Y-%m-%d")
-                st.session_state.schedule_data.at[idx, "Start Time"] = start_dt.strftime("%H:%M")
-                st.session_state.schedule_data.at[idx, "End Time"] = end_dt.strftime("%H:%M")
-
-            st.success("✅ Synced calendar changes to table!")
+if app_mode == "Input Generator":
+    input_generator()
+else:
+    schedule_generator()
 
 
 
