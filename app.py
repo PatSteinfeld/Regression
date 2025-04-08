@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from streamlit_calendar import calendar as streamlit_calendar_component
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
-# ----------- Session State Initialization -----------
+# ----------- Utility Functions -----------
 def initialize_session_state():
     if "audit_data" not in st.session_state:
         st.session_state.audit_data = {}
@@ -12,10 +12,7 @@ def initialize_session_state():
         st.session_state.schedule_data = pd.DataFrame()
     if "site_auditor_info" not in st.session_state:
         st.session_state.site_auditor_info = {}
-    if "schedule_generated" not in st.session_state:
-        st.session_state.schedule_generated = False
 
-# ----------- Input Page: Activity & Auditor Setup -----------
 def define_common_activities():
     st.markdown("### Define Common Activities")
     categories = {
@@ -34,6 +31,7 @@ def define_site_auditors(site_list):
         auditors = [a.strip() for a in auditors_input.split('\n') if a.strip()]
         coded_auditors = st.multiselect(f"Select Coded Auditors for {site}", auditors, key=f"{site}_coded")
 
+        st.markdown(f"#### 🌟 Auditor Availability for {site}")
         availability = {}
         for auditor in auditors:
             mandays = st.number_input(f"Available Mandays for {auditor}", min_value=0.0, step=0.5, value=1.0, key=f"{site}_{auditor}_availability")
@@ -44,10 +42,11 @@ def define_site_auditors(site_list):
             "coded_auditors": coded_auditors,
             "availability": availability
         }
+
     return site_auditor_info
 
 def input_generator():
-    st.header("📥 Auditors Planning Schedule Input Generator")
+    st.header("Auditors Planning Schedule Input Generator")
     common_activities = define_common_activities()
     num_sites = st.number_input("Number of sites to add", min_value=1, step=1, value=1)
 
@@ -91,10 +90,8 @@ def input_generator():
     if st.button("Save Data for Scheduling"):
         st.session_state.audit_data = site_audit_data
         st.session_state.site_auditor_info = site_auditor_info
-        st.session_state.schedule_generated = False
-        st.success("✅ Data saved! Now go to the Schedule Generator.")
+        st.success("Data saved! Proceed to the Schedule Generator.")
 
-# ----------- Calendar Renderer -----------
 def render_calendar_and_get_updates(schedule_df):
     events = []
     for idx, row in schedule_df.iterrows():
@@ -114,18 +111,22 @@ def render_calendar_and_get_updates(schedule_df):
         "initialView": "timeGridWeek",
         "slotMinTime": "08:00:00",
         "slotMaxTime": "18:00:00",
-        "height": 500
+        "height": "400px"
     }
 
-    st.markdown("### 📅 Schedule Calendar (Drag to Reschedule)")
-    return streamlit_calendar_component(events=events, options=calendar_options, key="schedule_calendar")
+    st.markdown("### 🗕️ Interactive Calendar (Drag to Reschedule)")
+    calendar_events = streamlit_calendar_component(
+        events=events,
+        options=calendar_options,
+        key="sync_calendar"
+    )
+    return calendar_events
 
-# ----------- Schedule Generator -----------
 def schedule_generator():
-    st.header("🗓️ Schedule Generator")
+    st.header("🖖️ Audit Schedule - Interactive Calendar")
 
-    if not st.session_state.audit_data or not st.session_state.site_auditor_info:
-        st.warning("Please first enter inputs from the 'Input Generator' page.")
+    if not st.session_state.get("audit_data") or not st.session_state.get("site_auditor_info"):
+        st.warning("No data available. Please use the Input Generator first.")
         return
 
     selected_site = st.selectbox("🏢 Select Site", list(st.session_state.audit_data.keys()))
@@ -135,6 +136,10 @@ def schedule_generator():
     coded_auditors = st.session_state.site_auditor_info[selected_site]["coded_auditors"]
     availability = st.session_state.site_auditor_info[selected_site]["availability"]
     used_mandays = {auditor: 0.0 for auditor in auditors}
+
+    if not auditors:
+        st.warning(f"Please enter auditors for site: {selected_site}")
+        return
 
     if st.button("Generate Schedule"):
         schedule_data = []
@@ -170,25 +175,27 @@ def schedule_generator():
                         start_time += timedelta(minutes=30)
 
         st.session_state.schedule_data = pd.DataFrame(schedule_data)
-        st.session_state.schedule_generated = True
 
-    if st.session_state.schedule_generated and not st.session_state.schedule_data.empty:
+    if not st.session_state.schedule_data.empty:
         calendar_events = render_calendar_and_get_updates(st.session_state.schedule_data)
 
-        if "event" in calendar_events:
-            for event in calendar_events["event"]:
+        # Sync all events from calendar to grid
+        if "events" in calendar_events:
+            for event in calendar_events["events"]:
                 idx = int(event["id"])
                 start_dt = datetime.fromisoformat(event["start"])
                 end_dt = datetime.fromisoformat(event["end"])
+
                 st.session_state.schedule_data.at[idx, "Proposed Date"] = start_dt.date().strftime("%Y-%m-%d")
                 st.session_state.schedule_data.at[idx, "Start Time"] = start_dt.strftime("%H:%M")
                 st.session_state.schedule_data.at[idx, "End Time"] = end_dt.strftime("%H:%M")
 
-        st.markdown("### 📝 Final Editable Grid")
+        st.write("### 📜 Editable Grid")
         gb = GridOptionsBuilder.from_dataframe(st.session_state.schedule_data)
         editable_columns = ["Activity", "Proposed Date", "Start Time", "End Time", "Assigned Auditor"]
         for col in editable_columns:
             gb.configure_column(col, editable=True)
+
         gb.configure_column("Assigned Auditor", editable=True, cellEditor="agSelectCellEditor",
                             cellEditorParams={"values": auditors})
         grid_options = gb.build()
@@ -198,19 +205,21 @@ def schedule_generator():
             gridOptions=grid_options,
             height=400,
             update_mode=GridUpdateMode.VALUE_CHANGED,
-            key="schedule_grid_final"
+            key="schedule_grid"
         )
+
         st.session_state.schedule_data = grid_response["data"]
 
-# ----------- App Launcher -----------
+# ---------- App Navigation ----------
 initialize_session_state()
-st.sidebar.title("🧭 Navigation")
-app_mode = st.sidebar.radio("Go to", ["Input Generator", "Schedule Generator"])
+st.sidebar.title("Navigation")
+app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
 
 if app_mode == "Input Generator":
     input_generator()
 else:
     schedule_generator()
+
 
 
 
