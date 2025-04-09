@@ -120,14 +120,16 @@ def render_calendar_and_get_updates(schedule_df):
         })
 
     calendar_options = {
+        "initialView": "timeGridDay",  # Only show one day
+        "slotMinTime": "08:00:00",
+        "slotMaxTime": "18:00:00",
         "editable": True,
         "selectable": True,
         "eventStartEditable": True,
         "eventDurationEditable": True,
-        "initialView": "timeGridWeek",
-        "slotMinTime": "08:00:00",
-        "slotMaxTime": "18:00:00",
+        "initialDate": schedule_df["Proposed Date"].iloc[0],  # Show only the date of audit
     }
+
 
     st.markdown("### 🗓️ Interactive Calendar")
     calendar_events = streamlit_calendar_component(
