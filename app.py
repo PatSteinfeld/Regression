@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from streamlit_calendar import calendar as streamlit_calendar_component
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode  # ✅ FIXED IMPORT
-import io
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode  # ✅ FIXED: Missing imports
 
 # ----------- Utility Functions ----------- #
 def initialize_session_state():
@@ -43,7 +42,6 @@ def define_site_auditors(site_list):
                 "coded_auditors": coded_auditors,
                 "availability": availability
             }
-
     return site_auditor_info
 
 def input_generator():
@@ -165,22 +163,23 @@ def schedule_generator():
                     available_options = [a for a in allowed_auditors if used_mandays[a] < availability[a]]
                     if available_options:
                         assigned_auditor = min(available_options, key=lambda a: used_mandays[a])
-                        used_mandays[assigned_auditor] += 0.1875
+                        used_mandays[assigned_auditor] += 0.1875  # Roughly 90 mins
 
+                    duration = audit["Durations"].get(activity, 90)
                     schedule_data.append({
                         "Site": selected_site,
                         "Activity": activity,
                         "Core Status": core_status,
                         "Proposed Date": audit["Proposed Date"],
                         "Start Time": start_time.strftime('%H:%M'),
-                        "End Time": (start_time + timedelta(minutes=90)).strftime('%H:%M'),
+                        "End Time": (start_time + timedelta(minutes=duration)).strftime('%H:%M'),
                         "Assigned Auditor": assigned_auditor,
                         "Allowed Auditors": ", ".join(allowed_auditors)
                     })
 
-                    start_time += timedelta(minutes=90)
+                    start_time += timedelta(minutes=duration)
                     if start_time.time() == datetime.strptime("13:00", "%H:%M").time():
-                        start_time += timedelta(minutes=30)
+                        start_time += timedelta(minutes=30)  # Lunch break
 
         st.session_state.schedule_data = pd.DataFrame(schedule_data)
 
@@ -226,6 +225,7 @@ if app_mode == "Input Generator":
     input_generator()
 else:
     schedule_generator()
+
 
 
 
