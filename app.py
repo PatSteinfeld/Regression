@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from streamlit_calendar import calendar as streamlit_calendar_component
+import io
 
 # ----------- Utility Functions ----------- #
 def initialize_session_state():
@@ -13,34 +14,34 @@ def initialize_session_state():
         st.session_state.site_auditor_info = {}
 
 def define_common_activities():
-    st.markdown("### Define Common Activities")
-    categories = {
-        "Audit Planning": st.text_area("Audit Planning Activities (Comma-separated)", "Planning Meeting, Document Review"),
-        "Opening Meeting": st.text_area("Opening Meeting Activities (Comma-separated)", "Opening Meeting"),
-        "Process Audits": st.text_area("Process Audit Activities (Comma-separated)", "Production, Purchasing, Quality, Warehouse"),
-        "Closing Meeting": st.text_area("Closing Meeting Activities (Comma-separated)", "Closing Meeting")
-    }
+    with st.expander("Define Common Activities"):
+        categories = {
+            "Audit Planning": st.text_area("Audit Planning Activities (Comma-separated)", "Planning Meeting, Document Review"),
+            "Opening Meeting": st.text_area("Opening Meeting Activities (Comma-separated)", "Opening Meeting"),
+            "Process Audits": st.text_area("Process Audit Activities (Comma-separated)", "Production, Purchasing, Quality, Warehouse"),
+            "Closing Meeting": st.text_area("Closing Meeting Activities (Comma-separated)", "Closing Meeting")
+        }
     return {k: [a.strip() for a in v.split(',') if a.strip()] for k, v in categories.items()}
 
 def define_site_auditors(site_list):
     site_auditor_info = {}
     for site in site_list:
-        st.markdown(f"### 👥 Auditors for Site: {site}")
-        auditors_input = st.text_area(f"Enter Auditors for {site} (One per line)", key=f"{site}_auditors")
-        auditors = [a.strip() for a in auditors_input.split('\n') if a.strip()]
-        coded_auditors = st.multiselect(f"Select Coded Auditors for {site}", auditors, key=f"{site}_coded")
+        with st.expander(f"👥 Auditors for Site: {site}"):
+            auditors_input = st.text_area(f"Enter Auditors for {site} (One per line)", key=f"{site}_auditors")
+            auditors = [a.strip() for a in auditors_input.split('\n') if a.strip()]
+            coded_auditors = st.multiselect(f"Select Coded Auditors for {site}", auditors, key=f"{site}_coded")
 
-        st.markdown(f"#### 🌟 Auditor Availability for {site}")
-        availability = {}
-        for auditor in auditors:
-            mandays = st.number_input(f"Available Mandays for {auditor}", min_value=0.0, step=0.5, value=1.0, key=f"{site}_{auditor}_availability")
-            availability[auditor] = mandays
+            st.markdown(f"####  Auditor Availability for {site}")
+            availability = {}
+            for auditor in auditors:
+                mandays = st.number_input(f"Available Mandays for {auditor}", min_value=0.0, step=0.5, value=1.0, key=f"{site}_{auditor}_availability")
+                availability[auditor] = mandays
 
-        site_auditor_info[site] = {
-            "auditors": auditors,
-            "coded_auditors": coded_auditors,
-            "availability": availability
-        }
+            site_auditor_info[site] = {
+                "auditors": auditors,
+                "coded_auditors": coded_auditors,
+                "availability": availability
+            }
 
     return site_auditor_info
 
@@ -58,31 +59,39 @@ def input_generator():
             site_list.append(site)
             site_activity_data[site] = {}
             for category, activities in common_activities.items():
-                st.markdown(f"### {category} for {site}")
-                for activity in activities:
-                    is_core = st.checkbox(f"Mark '{activity}' as Core", key=f"core_{site}_{activity}")
-                    site_activity_data[site][activity] = "Core" if is_core else "Non-Core"
+                with st.expander(f"{category} for {site}"):
+                    for activity in activities:
+                        is_core = st.checkbox(f"Mark '{activity}' as Core", key=f"core_{site}_{activity}")
+                        site_activity_data[site][activity] = "Core" if is_core else "Non-Core"
 
     site_audit_data = {}
     for site in site_list:
-        st.markdown(f"## Site: {site}")
-        num_audits = st.number_input(f"Number of audits for {site}", min_value=1, step=1, value=1, key=f"num_audits_{site}")
-        audit_data = []
-        for i in range(num_audits):
-            audit_type = st.selectbox(f"Select Audit Type {i+1}", ["IA", "P1", "P2", "P3", "P4", "P5", "RC"], key=f"audit_type_{site}_{i}")
-            proposed_date = st.date_input(f"Proposed Date {i+1}", key=f"date_{site}_{i}")
-            mandays = st.number_input(f"Mandays {i+1}", min_value=1, step=1, key=f"mandays_{site}_{i}")
-            selected_activities = {activity: st.checkbox(activity, key=f"{activity}_{site}_{i}") for activity in site_activity_data[site].keys()}
-            audit_entry = {
-                "Audit Type": audit_type,
-                "Proposed Date": proposed_date.strftime("%Y-%m-%d"),
-                "Mandays": mandays,
-                "Total Hours": mandays * 8,
-                "Activities": {activity: "✔️" if selected else "❌" for activity, selected in selected_activities.items()},
-                "Core Status": {activity: site_activity_data[site][activity] for activity in selected_activities}
-            }
-            audit_data.append(audit_entry)
-        site_audit_data[site] = audit_data
+        with st.expander(f"Audit Details for Site: {site}"):
+            num_audits = st.number_input(f"Number of audits for {site}", min_value=1, step=1, value=1, key=f"num_audits_{site}")
+            audit_data = []
+            for i in range(num_audits):
+                audit_type = st.selectbox(f"Select Audit Type {i+1}", ["IA", "P1", "P2", "P3", "P4", "P5", "RC"], key=f"audit_type_{site}_{i}")
+                proposed_date = st.date_input(f"Proposed Date {i+1}", key=f"date_{site}_{i}")
+                mandays = st.number_input(f"Mandays {i+1}", min_value=1, step=1, key=f"mandays_{site}_{i}")
+                selected_activities = {}
+                activity_durations = {}
+                for activity in site_activity_data[site].keys():
+                    is_selected = st.checkbox(activity, key=f"{activity}_{site}_{i}")
+                    if is_selected:
+                        duration = st.number_input(f"Duration (mins) for {activity}", min_value=30, max_value=240, value=90, step=15, key=f"dur_{activity}_{site}_{i}")
+                        selected_activities[activity] = True
+                        activity_durations[activity] = duration
+                audit_entry = {
+                    "Audit Type": audit_type,
+                    "Proposed Date": proposed_date.strftime("%Y-%m-%d"),
+                    "Mandays": mandays,
+                    "Total Hours": mandays * 8,
+                    "Activities": {activity: "✔️" if selected_activities.get(activity) else "❌" for activity in site_activity_data[site]},
+                    "Core Status": {activity: site_activity_data[site][activity] for activity in selected_activities},
+                    "Durations": activity_durations
+                }
+                audit_data.append(audit_entry)
+            site_audit_data[site] = audit_data
 
     site_auditor_info = define_site_auditors(site_list)
 
