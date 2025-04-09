@@ -100,7 +100,7 @@ def input_generator():
         st.session_state.site_auditor_info = site_auditor_info
         st.success("Data saved! Proceed to the Schedule Generator.")
 
-def render_calendar_and_get_updates(schedule_df):
+def render_calendar_and_get_updates(schedule_df, proposed_date):
     events = []
     for idx, row in schedule_df.iterrows():
         events.append({
@@ -111,32 +111,45 @@ def render_calendar_and_get_updates(schedule_df):
             "color": "#1f77b4" if row["Core Status"] == "Core" else "#ff7f0e",
         })
 
+    # Add lunch break as a background event
+    lunch_break_event = {
+        "start": f"{proposed_date}T13:00:00",
+        "end": f"{proposed_date}T13:30:00",
+        "display": "background",
+        "color": "#d3d3d3",
+        "title": "Lunch Break"
+    }
+
     calendar_options = {
         "editable": True,
         "selectable": True,
         "eventStartEditable": True,
         "eventDurationEditable": True,
-        "initialView": "timeGridWeek",
-        "slotMinTime": "08:00:00",
-        "slotMaxTime": "18:00:00",
+        "initialView": "timeGridDay",
+        "initialDate": proposed_date,
+        "slotMinTime": "09:00:00",
+        "slotMaxTime": "18:30:00",
+        "allDaySlot": False,
+        "height": "auto",
     }
 
-    st.markdown("### 🗓️ Interactive Calendar (Fully Editable)")
+    st.markdown("### 🗓️ Interactive Calendar (Proposed Date Only, With Lunch Break)")
+
     calendar_events = streamlit_calendar_component(
-        events=events,
+        events=events + [lunch_break_event],
         options=calendar_options,
         key="sync_calendar"
     )
     return calendar_events
 
 def schedule_generator():
-    st.header("🖖️ Audit Schedule - Interactive Calendar")
+    st.header(" Audit Schedule - Interactive Calendar")
 
-    if not st.session_state.get("audit_data") or not st.session_state.get("site_auditor_info"):
+    if st.session_state.get("audit_data") is None or st.session_state.get("site_auditor_info") is None:
         st.warning("No data available. Please use the Input Generator first.")
         return
 
-    selected_site = st.selectbox("🏢 Select Site", list(st.session_state.audit_data.keys()))
+    selected_site = st.selectbox(" Select Site", list(st.session_state.audit_data.keys()))
     selected_audit_type = st.selectbox("Select Audit Type", ["IA", "P1", "P2", "P3", "P4", "P5", "RC"])
 
     auditors = st.session_state.site_auditor_info[selected_site]["auditors"]
@@ -166,25 +179,35 @@ def schedule_generator():
                         assigned_auditor = min(available_options, key=lambda a: used_mandays[a])
                         used_mandays[assigned_auditor] += 0.1875
 
+                    # Ensure no activity overlaps with lunch break
+                    if start_time.time() >= datetime.strptime("13:00", "%H:%M").time() and start_time.time() < datetime.strptime("13:30", "%H:%M").time():
+                        start_time = datetime.combine(start_time.date(), datetime.strptime("13:30", "%H:%M").time())
+
+                    end_time = start_time + timedelta(minutes=90)
+                    if start_time.time() < datetime.strptime("13:00", "%H:%M").time() and end_time.time() > datetime.strptime("13:00", "%H:%M").time():
+                        start_time = datetime.combine(start_time.date(), datetime.strptime("13:30", "%H:%M").time())
+                        end_time = start_time + timedelta(minutes=90)
+
                     schedule_data.append({
                         "Site": selected_site,
                         "Activity": activity,
                         "Core Status": core_status,
                         "Proposed Date": audit["Proposed Date"],
                         "Start Time": start_time.strftime('%H:%M'),
-                        "End Time": (start_time + timedelta(minutes=90)).strftime('%H:%M'),
+                        "End Time": end_time.strftime('%H:%M'),
                         "Assigned Auditor": assigned_auditor,
                         "Allowed Auditors": ", ".join(allowed_auditors)
                     })
 
-                    start_time += timedelta(minutes=90)
-                    if start_time.time() == datetime.strptime("13:00", "%H:%M").time():
-                        start_time += timedelta(minutes=30)
+                    start_time = end_time
 
         st.session_state.schedule_data = pd.DataFrame(schedule_data)
 
     if not st.session_state.schedule_data.empty:
-        calendar_events = render_calendar_and_get_updates(st.session_state.schedule_data)
+        calendar_events = render_calendar_and_get_updates(
+            st.session_state.schedule_data,
+            proposed_date=st.session_state.schedule_data["Proposed Date"].iloc[0]
+        )
 
         if "event" in calendar_events:
             for event in calendar_events["event"]:
@@ -196,11 +219,25 @@ def schedule_generator():
                 st.session_state.schedule_data.at[idx, "Start Time"] = start_dt.strftime("%H:%M")
                 st.session_state.schedule_data.at[idx, "End Time"] = end_dt.strftime("%H:%M")
 
-        st.markdown("### ✅ All edits are now handled via calendar.")
-        st.download_button("📥 Download Updated Schedule",
-                           data=st.session_state.schedule_data.to_csv(index=False),
-                           file_name="updated_schedule.csv",
-                           mime="text/csv")
+                try:
+                    activity, auditor = event["title"].split(" - ", 1)
+                    st.session_state.schedule_data.at[idx, "Activity"] = activity.strip()
+                    st.session_state.schedule_data.at[idx, "Assigned Auditor"] = auditor.strip()
+                except ValueError:
+                    pass
+
+        # Excel Export
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            st.session_state.schedule_data.to_excel(writer, sheet_name='Schedule', index=False)
+            worksheet = writer.sheets['Schedule']
+            worksheet.set_column("A:G", 20)
+        st.download_button(
+            label=" Download as Excel",
+            data=buffer.getvalue(),
+            file_name="updated_schedule.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
 # ---------- App Navigation ---------- #
 initialize_session_state()
