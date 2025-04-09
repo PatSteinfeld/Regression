@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from streamlit_calendar import calendar as streamlit_calendar_component
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
-# ----------- Utility Functions -----------
+# ----------- Utility Functions ----------- #
 def initialize_session_state():
     if "audit_data" not in st.session_state:
         st.session_state.audit_data = {}
@@ -113,7 +112,7 @@ def render_calendar_and_get_updates(schedule_df):
         "slotMaxTime": "18:00:00",
     }
 
-    st.markdown("### 🗕️ Interactive Calendar (Drag to Reschedule)")
+    st.markdown("### 🗓️ Interactive Calendar (Fully Editable)")
     calendar_events = streamlit_calendar_component(
         events=events,
         options=calendar_options,
@@ -188,27 +187,13 @@ def schedule_generator():
                 st.session_state.schedule_data.at[idx, "Start Time"] = start_dt.strftime("%H:%M")
                 st.session_state.schedule_data.at[idx, "End Time"] = end_dt.strftime("%H:%M")
 
-        st.write("### 📝 Editable Grid")
-        gb = GridOptionsBuilder.from_dataframe(st.session_state.schedule_data)
-        editable_columns = ["Activity", "Proposed Date", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"]
-        for col in editable_columns:
-            gb.configure_column(col, editable=True)
+        st.markdown("### ✅ All edits are now handled via calendar.")
+        st.download_button("📥 Download Updated Schedule",
+                           data=st.session_state.schedule_data.to_csv(index=False),
+                           file_name="updated_schedule.csv",
+                           mime="text/csv")
 
-        gb.configure_column("Assigned Auditor", editable=True, cellEditor="agSelectCellEditor",
-                            cellEditorParams={"values": auditors})
-        grid_options = gb.build()
-
-        grid_response = AgGrid(
-            st.session_state.schedule_data,
-            gridOptions=grid_options,
-            height=400,
-            update_mode=GridUpdateMode.VALUE_CHANGED,
-            key="schedule_grid"
-        )
-
-        st.session_state.schedule_data = grid_response["data"]
-
-# ---------- App Navigation ----------
+# ---------- App Navigation ---------- #
 initialize_session_state()
 st.sidebar.title("Navigation")
 app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
