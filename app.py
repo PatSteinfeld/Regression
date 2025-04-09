@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from streamlit_calendar import calendar as streamlit_calendar_component
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode  # ✅ FIXED IMPORT
 import io
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
-
 
 # ----------- Utility Functions ----------- #
 def initialize_session_state():
@@ -101,6 +100,7 @@ def input_generator():
         st.session_state.audit_data = site_audit_data
         st.session_state.site_auditor_info = site_auditor_info
         st.success("Data saved! Proceed to the Schedule Generator.")
+
 def render_calendar_and_get_updates(schedule_df):
     events = []
     for idx, row in schedule_df.iterrows():
@@ -217,7 +217,7 @@ def schedule_generator():
 
         st.session_state.schedule_data = grid_response["data"]
 
-# ---------- App Navigation ----------
+# ---------- App Navigation ---------- #
 initialize_session_state()
 st.sidebar.title("Navigation")
 app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
@@ -226,6 +226,7 @@ if app_mode == "Input Generator":
     input_generator()
 else:
     schedule_generator()
+
 
 
 
