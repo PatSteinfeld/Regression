@@ -92,7 +92,7 @@ def input_generator():
         st.session_state.site_auditor_info = site_auditor_info
         st.success("Data saved! Proceed to the Schedule Generator.")
 
-def render_calendar_and_get_updates(schedule_df):
+def render_calendar_and_get_updates(schedule_df, proposed_date):
     events = []
     for idx, row in schedule_df.iterrows():
         events.append({
@@ -103,23 +103,37 @@ def render_calendar_and_get_updates(schedule_df):
             "color": "#1f77b4" if row["Core Status"] == "Core" else "#ff7f0e",
         })
 
+    # Add lunch break as a background event
+    lunch_break_event = {
+        "start": f"{proposed_date}T13:00:00",
+        "end": f"{proposed_date}T13:30:00",
+        "display": "background",
+        "color": "#d3d3d3",  # light grey
+        "title": "Lunch Break"
+    }
+
     calendar_options = {
         "editable": True,
         "selectable": True,
         "eventStartEditable": True,
         "eventDurationEditable": True,
-        "initialView": "timeGridWeek",
-        "slotMinTime": "08:00:00",
-        "slotMaxTime": "18:00:00",
+        "initialView": "timeGridDay",
+        "initialDate": proposed_date,
+        "slotMinTime": "09:00:00",
+        "slotMaxTime": "18:30:00",
+        "allDaySlot": False,
+        "height": "auto",
     }
 
-    st.markdown("### 🗓️ Interactive Calendar (Fully Editable)")
+    st.markdown("### 🗓️ Interactive Calendar (Proposed Date Only, With Lunch Break)")
+
     calendar_events = streamlit_calendar_component(
-        events=events,
+        events=events + [lunch_break_event],
         options=calendar_options,
         key="sync_calendar"
     )
     return calendar_events
+
 
 def schedule_generator():
     st.header(" Audit Schedule - Interactive Calendar")
@@ -176,7 +190,11 @@ def schedule_generator():
         st.session_state.schedule_data = pd.DataFrame(schedule_data)
 
     if not st.session_state.schedule_data.empty:
-        calendar_events = render_calendar_and_get_updates(st.session_state.schedule_data)
+        calendar_events = render_calendar_and_get_updates(
+            st.session_state.schedule_data,
+            proposed_date=st.session_state.schedule_data["Proposed Date"].iloc[0]
+        )
+
 
         if "event" in calendar_events:
             for event in calendar_events["event"]:
