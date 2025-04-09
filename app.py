@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from streamlit_calendar import calendar as streamlit_calendar_component
+import io
 
 # ----------- Utility Functions ----------- #
 def initialize_session_state():
@@ -187,11 +188,32 @@ def schedule_generator():
                 st.session_state.schedule_data.at[idx, "Start Time"] = start_dt.strftime("%H:%M")
                 st.session_state.schedule_data.at[idx, "End Time"] = end_dt.strftime("%H:%M")
 
-        st.markdown("### ✅ All edits are now handled via calendar.")
-        st.download_button("📥 Download Updated Schedule",
+                try:
+                    activity, auditor = event["title"].split(" - ", 1)
+                    st.session_state.schedule_data.at[idx, "Activity"] = activity.strip()
+                    st.session_state.schedule_data.at[idx, "Assigned Auditor"] = auditor.strip()
+                except ValueError:
+                    pass
+
+        st.markdown("### ✅ Calendar edits applied. You can now download the updated schedule:")
+
+        st.download_button("📥 Download as CSV",
                            data=st.session_state.schedule_data.to_csv(index=False),
                            file_name="updated_schedule.csv",
                            mime="text/csv")
+
+        # Excel Export
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            st.session_state.schedule_data.to_excel(writer, sheet_name='Schedule', index=False)
+            worksheet = writer.sheets['Schedule']
+            worksheet.set_column("A:G", 20)
+        st.download_button(
+            label="📥 Download as Excel",
+            data=buffer.getvalue(),
+            file_name="updated_schedule.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
 # ---------- App Navigation ---------- #
 initialize_session_state()
@@ -202,6 +224,7 @@ if app_mode == "Input Generator":
     input_generator()
 else:
     schedule_generator()
+
 
 
 
