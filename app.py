@@ -99,8 +99,7 @@ def input_generator():
         st.session_state.audit_data = site_audit_data
         st.session_state.site_auditor_info = site_auditor_info
         st.success("Data saved! Proceed to the Schedule Generator.")
-
-def render_calendar_and_get_updates(schedule_df, proposed_date):
+def render_calendar_and_get_updates(schedule_df):
     events = []
     for idx, row in schedule_df.iterrows():
         events.append({
@@ -111,45 +110,32 @@ def render_calendar_and_get_updates(schedule_df, proposed_date):
             "color": "#1f77b4" if row["Core Status"] == "Core" else "#ff7f0e",
         })
 
-    # Add lunch break as a background event
-    lunch_break_event = {
-        "start": f"{proposed_date}T13:00:00",
-        "end": f"{proposed_date}T13:30:00",
-        "display": "background",
-        "color": "#d3d3d3",
-        "title": "Lunch Break"
-    }
-
     calendar_options = {
         "editable": True,
         "selectable": True,
         "eventStartEditable": True,
         "eventDurationEditable": True,
-        "initialView": "timeGridDay",
-        "initialDate": proposed_date,
-        "slotMinTime": "09:00:00",
-        "slotMaxTime": "18:30:00",
-        "allDaySlot": False,
-        "height": "auto",
+        "initialView": "timeGridWeek",
+        "slotMinTime": "08:00:00",
+        "slotMaxTime": "18:00:00",
     }
 
-    st.markdown("### 🗓️ Interactive Calendar (Proposed Date Only, With Lunch Break)")
-
+    st.markdown("### 🗕️ Interactive Calendar (Drag to Reschedule)")
     calendar_events = streamlit_calendar_component(
-        events=events + [lunch_break_event],
+        events=events,
         options=calendar_options,
         key="sync_calendar"
     )
     return calendar_events
 
 def schedule_generator():
-    st.header(" Audit Schedule - Interactive Calendar")
+    st.header("🖖️ Audit Schedule - Interactive Calendar")
 
-    if st.session_state.get("audit_data") is None or st.session_state.get("site_auditor_info") is None:
+    if not st.session_state.get("audit_data") or not st.session_state.get("site_auditor_info"):
         st.warning("No data available. Please use the Input Generator first.")
         return
 
-    selected_site = st.selectbox(" Select Site", list(st.session_state.audit_data.keys()))
+    selected_site = st.selectbox("🏢 Select Site", list(st.session_state.audit_data.keys()))
     selected_audit_type = st.selectbox("Select Audit Type", ["IA", "P1", "P2", "P3", "P4", "P5", "RC"])
 
     auditors = st.session_state.site_auditor_info[selected_site]["auditors"]
@@ -179,35 +165,25 @@ def schedule_generator():
                         assigned_auditor = min(available_options, key=lambda a: used_mandays[a])
                         used_mandays[assigned_auditor] += 0.1875
 
-                    # Ensure no activity overlaps with lunch break
-                    if start_time.time() >= datetime.strptime("13:00", "%H:%M").time() and start_time.time() < datetime.strptime("13:30", "%H:%M").time():
-                        start_time = datetime.combine(start_time.date(), datetime.strptime("13:30", "%H:%M").time())
-
-                    end_time = start_time + timedelta(minutes=90)
-                    if start_time.time() < datetime.strptime("13:00", "%H:%M").time() and end_time.time() > datetime.strptime("13:00", "%H:%M").time():
-                        start_time = datetime.combine(start_time.date(), datetime.strptime("13:30", "%H:%M").time())
-                        end_time = start_time + timedelta(minutes=90)
-
                     schedule_data.append({
                         "Site": selected_site,
                         "Activity": activity,
                         "Core Status": core_status,
                         "Proposed Date": audit["Proposed Date"],
                         "Start Time": start_time.strftime('%H:%M'),
-                        "End Time": end_time.strftime('%H:%M'),
+                        "End Time": (start_time + timedelta(minutes=90)).strftime('%H:%M'),
                         "Assigned Auditor": assigned_auditor,
                         "Allowed Auditors": ", ".join(allowed_auditors)
                     })
 
-                    start_time = end_time
+                    start_time += timedelta(minutes=90)
+                    if start_time.time() == datetime.strptime("13:00", "%H:%M").time():
+                        start_time += timedelta(minutes=30)
 
         st.session_state.schedule_data = pd.DataFrame(schedule_data)
 
     if not st.session_state.schedule_data.empty:
-        calendar_events = render_calendar_and_get_updates(
-            st.session_state.schedule_data,
-            proposed_date=st.session_state.schedule_data["Proposed Date"].iloc[0]
-        )
+        calendar_events = render_calendar_and_get_updates(st.session_state.schedule_data)
 
         if "event" in calendar_events:
             for event in calendar_events["event"]:
@@ -219,27 +195,27 @@ def schedule_generator():
                 st.session_state.schedule_data.at[idx, "Start Time"] = start_dt.strftime("%H:%M")
                 st.session_state.schedule_data.at[idx, "End Time"] = end_dt.strftime("%H:%M")
 
-                try:
-                    activity, auditor = event["title"].split(" - ", 1)
-                    st.session_state.schedule_data.at[idx, "Activity"] = activity.strip()
-                    st.session_state.schedule_data.at[idx, "Assigned Auditor"] = auditor.strip()
-                except ValueError:
-                    pass
+        st.write("### 📝 Editable Grid")
+        gb = GridOptionsBuilder.from_dataframe(st.session_state.schedule_data)
+        editable_columns = ["Activity", "Proposed Date", "Start Time", "End Time", "Assigned Auditor", "Allowed Auditors"]
+        for col in editable_columns:
+            gb.configure_column(col, editable=True)
 
-        # Excel Export
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            st.session_state.schedule_data.to_excel(writer, sheet_name='Schedule', index=False)
-            worksheet = writer.sheets['Schedule']
-            worksheet.set_column("A:G", 20)
-        st.download_button(
-            label=" Download as Excel",
-            data=buffer.getvalue(),
-            file_name="updated_schedule.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        gb.configure_column("Assigned Auditor", editable=True, cellEditor="agSelectCellEditor",
+                            cellEditorParams={"values": auditors})
+        grid_options = gb.build()
+
+        grid_response = AgGrid(
+            st.session_state.schedule_data,
+            gridOptions=grid_options,
+            height=400,
+            update_mode=GridUpdateMode.VALUE_CHANGED,
+            key="schedule_grid"
         )
 
-# ---------- App Navigation ---------- #
+        st.session_state.schedule_data = grid_response["data"]
+
+# ---------- App Navigation ----------
 initialize_session_state()
 st.sidebar.title("Navigation")
 app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
@@ -248,7 +224,6 @@ if app_mode == "Input Generator":
     input_generator()
 else:
     schedule_generator()
-
 
 
 
