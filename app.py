@@ -31,7 +31,7 @@ def define_site_auditors(site_list):
         auditors = [a.strip() for a in auditors_input.split('\n') if a.strip()]
         coded_auditors = st.multiselect(f"Select Coded Auditors for {site}", auditors, key=f"{site}_coded")
 
-        st.markdown(f"#### 🌟 Auditor Availability for {site}")
+        st.markdown(f"####  Auditor Availability for {site}")
         availability = {}
         for auditor in auditors:
             mandays = st.number_input(f"Available Mandays for {auditor}", min_value=0.0, step=0.5, value=1.0, key=f"{site}_{auditor}_availability")
@@ -122,13 +122,13 @@ def render_calendar_and_get_updates(schedule_df):
     return calendar_events
 
 def schedule_generator():
-    st.header("🖖️ Audit Schedule - Interactive Calendar")
+    st.header(" Audit Schedule - Interactive Calendar")
 
     if not st.session_state.get("audit_data") or not st.session_state.get("site_auditor_info"):
         st.warning("No data available. Please use the Input Generator first.")
         return
 
-    selected_site = st.selectbox("🏢 Select Site", list(st.session_state.audit_data.keys()))
+    selected_site = st.selectbox(" Select Site", list(st.session_state.audit_data.keys()))
     selected_audit_type = st.selectbox("Select Audit Type", ["IA", "P1", "P2", "P3", "P4", "P5", "RC"])
 
     auditors = st.session_state.site_auditor_info[selected_site]["auditors"]
@@ -195,12 +195,7 @@ def schedule_generator():
                 except ValueError:
                     pass
 
-        st.markdown("### ✅ Calendar edits applied. You can now download the updated schedule:")
-
-        st.download_button("📥 Download as CSV",
-                           data=st.session_state.schedule_data.to_csv(index=False),
-                           file_name="updated_schedule.csv",
-                           mime="text/csv")
+     
 
         # Excel Export
         buffer = io.BytesIO()
@@ -209,7 +204,7 @@ def schedule_generator():
             worksheet = writer.sheets['Schedule']
             worksheet.set_column("A:G", 20)
         st.download_button(
-            label="📥 Download as Excel",
+            label=" Download as Excel",
             data=buffer.getvalue(),
             file_name="updated_schedule.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
