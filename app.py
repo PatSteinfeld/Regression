@@ -184,8 +184,11 @@ def schedule_generator():
                     })
 
                     start_time += timedelta(minutes=90)
-                    if start_time.time() == datetime.strptime("13:00", "%H:%M").time():
-                        start_time += timedelta(minutes=30)
+
+                    # Skip lunch break if activity would start or end in that window
+                    if start_time.time() >= datetime.strptime("13:00", "%H:%M").time() and start_time.time() < datetime.strptime("13:30", "%H:%M").time():
+                        start_time = datetime.combine(start_time.date(), datetime.strptime("13:30", "%H:%M").time())
+
 
         st.session_state.schedule_data = pd.DataFrame(schedule_data)
 
