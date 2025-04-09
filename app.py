@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from streamlit_calendar import calendar as streamlit_calendar_component
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import io
 
 # ----------- Utility Functions ----------- #
@@ -104,6 +103,7 @@ def render_calendar_and_get_updates(schedule_df, proposed_date):
             "color": "#1f77b4" if row["Core Status"] == "Core" else "#ff7f0e",
         })
 
+    # Add lunch break as a background event
     lunch_break_event = {
         "start": f"{proposed_date}T13:00:00",
         "end": f"{proposed_date}T13:30:00",
@@ -137,7 +137,7 @@ def render_calendar_and_get_updates(schedule_df, proposed_date):
 def schedule_generator():
     st.header(" Audit Schedule - Interactive Calendar")
 
-    if not st.session_state.get("audit_data") or not st.session_state.get("site_auditor_info"):
+    if st.session_state.get("audit_data") is None or st.session_state.get("site_auditor_info") is None:
         st.warning("No data available. Please use the Input Generator first.")
         return
 
@@ -171,20 +171,27 @@ def schedule_generator():
                         assigned_auditor = min(available_options, key=lambda a: used_mandays[a])
                         used_mandays[assigned_auditor] += 0.1875
 
+                    # Ensure no activity overlaps with lunch break
+                    if start_time.time() >= datetime.strptime("13:00", "%H:%M").time() and start_time.time() < datetime.strptime("13:30", "%H:%M").time():
+                        start_time = datetime.combine(start_time.date(), datetime.strptime("13:30", "%H:%M").time())
+
+                    end_time = start_time + timedelta(minutes=90)
+                    if start_time.time() < datetime.strptime("13:00", "%H:%M").time() and end_time.time() > datetime.strptime("13:00", "%H:%M").time():
+                        start_time = datetime.combine(start_time.date(), datetime.strptime("13:30", "%H:%M").time())
+                        end_time = start_time + timedelta(minutes=90)
+
                     schedule_data.append({
                         "Site": selected_site,
                         "Activity": activity,
                         "Core Status": core_status,
                         "Proposed Date": audit["Proposed Date"],
                         "Start Time": start_time.strftime('%H:%M'),
-                        "End Time": (start_time + timedelta(minutes=90)).strftime('%H:%M'),
+                        "End Time": end_time.strftime('%H:%M'),
                         "Assigned Auditor": assigned_auditor,
                         "Allowed Auditors": ", ".join(allowed_auditors)
                     })
 
-                    start_time += timedelta(minutes=90)
-                    if start_time.time() >= datetime.strptime("13:00", "%H:%M").time() and start_time.time() < datetime.strptime("13:30", "%H:%M").time():
-                        start_time = datetime.combine(start_time.date(), datetime.strptime("13:30", "%H:%M").time())
+                    start_time = end_time
 
         st.session_state.schedule_data = pd.DataFrame(schedule_data)
 
@@ -211,37 +218,7 @@ def schedule_generator():
                 except ValueError:
                     pass
 
-        st.markdown("### 📜 Editable Schedule Table (Syncs with Calendar)")
-
-        gb = GridOptionsBuilder.from_dataframe(st.session_state.schedule_data)
-        gb.configure_pagination(enabled=True)
-        gb.configure_column("Assigned Auditor", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={"values": auditors})
-        gb.configure_column("Activity", editable=True)
-        gb.configure_column("Start Time", editable=True)
-        gb.configure_column("End Time", editable=True)
-        gb.configure_selection("multiple", use_checkbox=True)
-        gb.configure_grid_options(domLayout='autoHeight')
-
-        grid_response = AgGrid(
-            st.session_state.schedule_data,
-            gridOptions=gb.build(),
-            update_mode=GridUpdateMode.MODEL_CHANGED,
-            allow_unsafe_jscode=True,
-            fit_columns_on_grid_load=True,
-            key="aggrid_sync"
-        )
-
-        updated_df = grid_response["data"]
-        st.session_state.schedule_data.update(updated_df)
-
-        if grid_response["selected_rows"]:
-            st.warning("Selected rows will be deleted on clicking below.")
-            if st.button("❌ Delete Selected Events"):
-                selected_ids = [row["_selectedRowNodeInfo"]["nodeRowIndex"] for row in grid_response["selected_rows"]]
-                st.session_state.schedule_data.drop(index=selected_ids, inplace=True)
-                st.session_state.schedule_data.reset_index(drop=True, inplace=True)
-                st.rerun()
-
+        # Excel Export
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
             st.session_state.schedule_data.to_excel(writer, sheet_name='Schedule', index=False)
