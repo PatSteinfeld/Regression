@@ -168,18 +168,21 @@ def schedule_generator():
                     core_status = audit["Core Status"].get(activity, "Non-Core")
                     allowed = coded_auditors if core_status == "Core" else auditors
 
-                    # Suggest auditors based on lowest used mandays and availability
+                    num_auditors = st.number_input(
+                        f"👥 How many auditors for activity '{activity}'?", min_value=1, max_value=2, value=1, key=activity
+                    )
+
+                    # Suggest auditors based on availability
                     sorted_auditors = sorted(
                         [a for a in allowed if used_mandays[a] < availability[a]],
                         key=lambda x: used_mandays[x]
                     )
 
-                    # Assign 1 or 2 auditors (you can change this logic as needed)
-                    assigned_auditors = sorted_auditors[:2] if len(sorted_auditors) >= 2 else sorted_auditors[:1]
+                    assigned_auditors = sorted_auditors[:num_auditors]
 
-                    # Update manday usage
+                    # Calculate mandays per auditor
+                    hours = duration / 60
                     for auditor in assigned_auditors:
-                        hours = duration / 60
                         used_mandays[auditor] += round(hours / 8, 2)
 
                     schedule_data.append({
@@ -189,8 +192,10 @@ def schedule_generator():
                         "Proposed Date": audit["Proposed Date"],
                         "Start Time": start_time.strftime('%H:%M'),
                         "End Time": (start_time + timedelta(minutes=duration)).strftime('%H:%M'),
-                        "Assigned Auditor": ", ".join(assigned_auditors),
-                        "Allowed Auditors": ", ".join(allowed)
+                        "Auditor 1": assigned_auditors[0] if len(assigned_auditors) > 0 else "",
+                        "Auditor 2": assigned_auditors[1] if len(assigned_auditors) > 1 else "",
+                        "Allowed Auditors": ", ".join(allowed),
+                        "Duration (mins)": duration
                     })
 
                     start_time += timedelta(minutes=duration)
@@ -213,11 +218,12 @@ def schedule_generator():
 
         st.markdown("### 📝 Editable Schedule Table")
         gb = GridOptionsBuilder.from_dataframe(st.session_state.schedule_data)
-        editable_cols = ["Activity", "Proposed Date", "Start Time", "End Time", "Assigned Auditor"]
-        for col in editable_cols:
+        for col in ["Activity", "Proposed Date", "Start Time", "End Time", "Auditor 1", "Auditor 2"]:
             gb.configure_column(col, editable=True)
-        gb.configure_column("Assigned Auditor", cellEditor="agSelectCellEditor",
-                            cellEditorParams={"values": auditors, "multiple": True})
+        gb.configure_column("Auditor 1", cellEditor="agSelectCellEditor",
+                            cellEditorParams={"values": auditors})
+        gb.configure_column("Auditor 2", cellEditor="agSelectCellEditor",
+                            cellEditorParams={"values": auditors})
         grid_response = AgGrid(
             st.session_state.schedule_data,
             gridOptions=gb.build(),
@@ -229,8 +235,26 @@ def schedule_generator():
 
         # Manday Summary
         st.markdown("### 📊 Mandays Used Summary")
-        manday_summary = {auditor: round(used_mandays[auditor], 2) for auditor in auditors}
-        st.dataframe(pd.DataFrame(list(manday_summary.items()), columns=["Auditor", "Mandays Used"]))
+        actual_mandays = {auditor: 0.0 for auditor in auditors}
+        for _, row in st.session_state.schedule_data.iterrows():
+            duration = row["Duration (mins)"]
+            auditors_in_row = [row["Auditor 1"], row["Auditor 2"]]
+            auditors_in_row = [a for a in auditors_in_row if a]
+            per_auditor_manday = round((duration / 60) / 8, 2)
+            for auditor in auditors_in_row:
+                actual_mandays[auditor] += per_auditor_manday
+
+        manday_df = pd.DataFrame(list(actual_mandays.items()), columns=["Auditor", "Mandays Used"])
+        st.dataframe(manday_df)
+
+        # Export option
+        st.markdown("### 📤 Export")
+        export_df = st.session_state.schedule_data.copy()
+        with io.BytesIO() as buffer:
+            with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+                export_df.to_excel(writer, sheet_name="Schedule", index=False)
+                manday_df.to_excel(writer, sheet_name="Manday Summary", index=False)
+            st.download_button("📥 Download Excel", data=buffer.getvalue(), file_name="audit_schedule.xlsx")
 
 
 
