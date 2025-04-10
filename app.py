@@ -167,11 +167,20 @@ def schedule_generator():
                     duration = audit["Durations"].get(activity, 90)
                     core_status = audit["Core Status"].get(activity, "Non-Core")
                     allowed = coded_auditors if core_status == "Core" else auditors
-                    available = [a for a in allowed if used_mandays[a] < availability[a]]
 
-                    assigned = min(available, key=lambda x: used_mandays[x]) if available else ""
-                    if assigned:
-                        used_mandays[assigned] += round(duration / 480, 2)
+                    # Suggest auditors based on lowest used mandays and availability
+                    sorted_auditors = sorted(
+                        [a for a in allowed if used_mandays[a] < availability[a]],
+                        key=lambda x: used_mandays[x]
+                    )
+
+                    # Assign 1 or 2 auditors (you can change this logic as needed)
+                    assigned_auditors = sorted_auditors[:2] if len(sorted_auditors) >= 2 else sorted_auditors[:1]
+
+                    # Update manday usage
+                    for auditor in assigned_auditors:
+                        hours = duration / 60
+                        used_mandays[auditor] += round(hours / 8, 2)
 
                     schedule_data.append({
                         "Site": selected_site,
@@ -180,7 +189,7 @@ def schedule_generator():
                         "Proposed Date": audit["Proposed Date"],
                         "Start Time": start_time.strftime('%H:%M'),
                         "End Time": (start_time + timedelta(minutes=duration)).strftime('%H:%M'),
-                        "Assigned Auditor": assigned,
+                        "Assigned Auditor": ", ".join(assigned_auditors),
                         "Allowed Auditors": ", ".join(allowed)
                     })
 
@@ -208,7 +217,7 @@ def schedule_generator():
         for col in editable_cols:
             gb.configure_column(col, editable=True)
         gb.configure_column("Assigned Auditor", cellEditor="agSelectCellEditor",
-                            cellEditorParams={"values": auditors})
+                            cellEditorParams={"values": auditors, "multiple": True})
         grid_response = AgGrid(
             st.session_state.schedule_data,
             gridOptions=gb.build(),
@@ -218,15 +227,10 @@ def schedule_generator():
         )
         st.session_state.schedule_data = grid_response["data"]
 
-# ----------- App Navigation ----------- #
-initialize_session_state()
-st.sidebar.title("🔀 Navigation")
-app_mode = st.sidebar.radio("Choose a section:", ["Input Generator", "Schedule Generator"])
-
-if app_mode == "Input Generator":
-    input_generator()
-else:
-    schedule_generator()
+        # Manday Summary
+        st.markdown("### 📊 Mandays Used Summary")
+        manday_summary = {auditor: round(used_mandays[auditor], 2) for auditor in auditors}
+        st.dataframe(pd.DataFrame(list(manday_summary.items()), columns=["Auditor", "Mandays Used"]))
 
 
 
